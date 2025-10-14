@@ -417,7 +417,12 @@ function handleKeyboardInput() {
 // Обновление игровой логики
 function update() {
     // Обработка паузы - работает всегда, независимо от состояния игры
-    const pausePressed = keys['Escape'] || keys['KeyP'];
+    let pausePressed = keys['Escape'] || keys['KeyP'];
+    
+    // Проверяем паузу на геймпаде
+    if (isGamepadConnected && gamepad && gamepad.buttons[9].pressed) {
+        pausePressed = true;
+    }
     
     if (pausePressed && !pauseKeyPressed) {
         // Переключаем состояние паузы
@@ -431,8 +436,11 @@ function update() {
         pauseKeyPressed = true;
     }
     
-    // Сбрасываем флаг паузы, когда клавиши отпущены
-    if (!pausePressed) {
+    // Сбрасываем флаг паузы, когда все клавиши/кнопки отпущены
+    const keyboardPauseReleased = !keys['Escape'] && !keys['KeyP'];
+    const gamepadPauseReleased = !isGamepadConnected || !gamepad || !gamepad.buttons[9].pressed;
+    
+    if (keyboardPauseReleased && gamepadPauseReleased) {
         pauseKeyPressed = false;
     }
     
@@ -482,21 +490,6 @@ function update() {
         if (gamepad.buttons[2].pressed && !isAttacking && attackCooldown <= 0) {
             isAttacking = true;
             attackCooldown = 25;
-        }
-        
-        // Пауза с геймпада (кнопка Start)
-        if (gamepad.buttons[9].pressed && !pauseKeyPressed) {
-            if (gameState === 'playing') {
-                gameState = 'paused';
-            } else if (gameState === 'paused') {
-                gameState = 'playing';
-            }
-            pauseKeyPressed = true;
-        }
-        
-        // Сброс флага паузы для геймпада
-        if (!gamepad.buttons[9].pressed) {
-            pauseKeyPressed = false;
         }
     }
     
