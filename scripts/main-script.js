@@ -17,7 +17,7 @@ const gamepadStatusElement = document.getElementById('gamepadStatus');
 // Игровые переменные
 let gameState = 'menu'; // menu, playing, paused, gameOver, levelComplete
 let coins = 0;
-let lives = 3;
+let lives = 150;
 let level = 1;
 let gamepad = null;
 let isGamepadConnected = false;
@@ -158,11 +158,21 @@ function resizeCanvas() {
     camera.width = window.innerWidth;
     camera.height = window.innerHeight;
     
-    canvas.width = levelWidth;
-    canvas.height = levelHeight;
+    // ВАЖНО: Устанавливаем размер canvas равным размеру окна просмотра
+    canvas.width = camera.width;
+    canvas.height = camera.height;
     
     canvas.style.width = '100%';
     canvas.style.height = '100%';
+    
+    // Фиксируем камеру на нижней части уровня при ресайзе
+    if (gameState === 'playing') {
+        camera.y = levelHeight - camera.height;
+        
+        // Ограничения по вертикали
+        if (camera.y < 0) camera.y = 0;
+        if (camera.y + camera.height > levelHeight) camera.y = levelHeight - camera.height;
+    }
 }
 
 // Создание случайной платформы
@@ -180,7 +190,7 @@ function createRandomPlatform(x, y) {
         width: template.width,
         height: template.height,
         color: template.color,
-        hasCoins: Math.random() > 0.2 // 80% платформ будут с монетами
+        hasCoins: Math.random() > 0.3 // 80% платформ будут с монетами
     };
 }
 
@@ -232,93 +242,94 @@ function createLevelPath() {
     const pathCoins = [];
     
     let currentX = 200;
-    let currentY = 950; // Увеличена начальная высота (платформы ниже)
+    let currentY = 950;
     let totalCoins = 0;
     
-    // Максимальная высота прыжка игрока (приблизительно)
-    const maxJumpHeight = 300;
-    
-    // Создаем основной путь
-    while (currentX < levelWidth - 600) {
+    // УВЕЛИЧИВАЕМ количество платформ в основном пути
+    while (currentX < levelWidth - 400) { // Уменьшаем отступ от края
         // Случайный выбор типа платформы
-        const platformType = Math.floor(Math.random() * platformTemplates.length);
+        const platformType = Math.floor(Math.random() * 3); // 0, 1 или 2 (маленькие, средние, большие)
         const templates = platformTemplates[platformType];
         const template = templates[Math.floor(Math.random() * templates.length)];
         
-        // Ограничиваем изменение высоты для доступности (платформы ниже)
-        const heightChange = Math.random() * 150 - 75; // -75 до +75 (уменьшено)
-        const gapSize = Math.random() * 120 + 80; // 80-200 (уменьшено)
+        // Уменьшаем разброс высот для более плавного пути
+        const heightChange = Math.random() * 120 - 60; // -60 до +60
+        const gapSize = 80 + Math.random() * 60; // 80-140 (уменьшаем промежутки)
         
-        // Ограничиваем высоту, платформы теперь ниже для удобства
-        currentY = Math.max(700, Math.min(1100, currentY + heightChange)); // Диапазон 700-1100 вместо 500-1000
+        currentY = Math.max(400, Math.min(1100, currentY + heightChange));
         
-        const platform = {
-            x: currentX,
-            y: currentY,
-            width: template.width,
-            height: template.height,
-            color: template.color,
-            hasCoins: Math.random() > 0.2
-        };
-        
-        pathPlatforms.push(platform);
-        
-        // Создаем монеты для платформы
-        if (platform.hasCoins) {
-            const platformCoins = createCoinsOnPlatform(platform);
-            pathCoins.push(...platformCoins);
-            totalCoins += platformCoins.length;
+        // Проверяем, чтобы платформы не накладывались
+        let overlaps = false;
+        for (let platform of pathPlatforms) {
+            if (Math.abs(currentX - platform.x) < 120 && Math.abs(currentY - platform.y) < 40) {
+                overlaps = true;
+                break;
+            }
         }
         
-        // Переходим к следующей платформе
-        currentX += platform.width + gapSize;
-        
-        // 30% шанс создать дополнительную платформу выше/ниже (только если доступно)
-        if (Math.random() > 0.7 && currentX < levelWidth - 800) {
-            const verticalDirection = Math.random() > 0.5 ? 1 : -1;
-            // Ограничиваем высоту вертикальной платформы для доступности
-            const verticalHeightChange = verticalDirection * (120 + Math.random() * 30); // 120-150 вместо 150-200
+        if (!overlaps) {
+            const platform = {
+                x: currentX,
+                y: currentY,
+                width: template.width,
+                height: template.height,
+                color: template.color,
+                hasCoins: Math.random() > 0.3 // 70% платформ будут с монетами
+            };
             
-            // Проверяем, доступна ли платформа для прыжка
-            if (currentY + verticalHeightChange >= 600 && currentY + verticalHeightChange <= 1100) {
-                const verticalPlatform = createRandomPlatform(
-                    currentX - 100,
-                    currentY + verticalHeightChange
-                );
-                verticalPlatform.hasCoins = Math.random() > 0.3;
+            pathPlatforms.push(platform);
+            
+            // Создаем монеты для платформы
+            if (platform.hasCoins) {
+                const platformCoins = createCoinsOnPlatform(platform);
+                pathCoins.push(...platformCoins);
+                totalCoins += platformCoins.length;
+            }
+            
+            // Переходим к следующей платформе
+            currentX += platform.width + gapSize;
+            
+            // УВЕЛИЧИВАЕМ шанс создания дополнительных платформ
+            if (Math.random() > 0.7 && currentX < levelWidth - 600) { // 30% шанс вместо 15%
+                const verticalDirection = Math.random() > 0.5 ? 1 : -1;
+                const verticalHeightChange = verticalDirection * (100 + Math.random() * 60);
                 
-                pathPlatforms.push(verticalPlatform);
+                // Проверяем доступность и отсутствие пересечений
+                const verticalY = currentY + verticalHeightChange;
+                let verticalOverlaps = false;
                 
-                if (verticalPlatform.hasCoins) {
-                    const verticalCoins = createCoinsOnPlatform(verticalPlatform);
-                    pathCoins.push(...verticalCoins);
-                    totalCoins += verticalCoins.length;
+                for (let platform of pathPlatforms) {
+                    if (Math.abs(currentX - 80 - platform.x) < 120 && Math.abs(verticalY - platform.y) < 40) {
+                        verticalOverlaps = true;
+                        break;
+                    }
+                }
+                
+                if (!verticalOverlaps && verticalY >= 400 && verticalY <= 1100) {
+                    const verticalPlatform = createRandomPlatform(
+                        currentX - 80, // Уменьшаем отступ
+                        verticalY
+                    );
+                    verticalPlatform.hasCoins = Math.random() > 0.4; // 60% шанс
+                    
+                    pathPlatforms.push(verticalPlatform);
+                    
+                    if (verticalPlatform.hasCoins) {
+                        const verticalCoins = createCoinsOnPlatform(verticalPlatform);
+                        pathCoins.push(...verticalCoins);
+                        totalCoins += verticalCoins.length;
+                    }
                 }
             }
-        }
-        
-        // 20% шанс создать платформу-островок (только если доступно)
-        if (Math.random() > 0.8 && currentX < levelWidth - 800) {
-            // Ограничиваем высоту островка для доступности
-            const islandHeight = -150 - Math.random() * 50; // -150 до -200 вместо -200 до -250
-            
-            if (currentY + islandHeight >= 500) { // Проверяем, не слишком ли высоко
-                const islandPlatform = createRandomPlatform(
-                    currentX + 150,
-                    currentY + islandHeight
-                );
-                islandPlatform.hasCoins = true; // Островки всегда с монетами
-                
-                pathPlatforms.push(islandPlatform);
-                const islandCoins = createCoinsOnPlatform(islandPlatform);
-                pathCoins.push(...islandCoins);
-                totalCoins += islandCoins.length;
-            }
+        } else {
+            // Если есть пересечение, просто увеличиваем X и продолжаем
+            currentX += 100;
         }
     }
     
     return { platforms: pathPlatforms, coins: pathCoins, totalCoins: totalCoins };
 }
+
 
 // Создание дополнительных платформ для увеличения количества монет
 function createAdditionalPlatforms(mainPlatforms, mainCoins, targetCoins) {
@@ -379,22 +390,22 @@ function findPlatformForEnemy(minWidth = 150) {
 function createEnemies() {
     const enemies = [];
     
-    // Базовое количество врагов увеличено
-    const groundEnemyCount = 4 + Math.floor(level * 1.2);
-    const flyingEnemyCount = 2 + Math.floor(level * 0.8);
-    const platformEnemyCount = 3 + Math.floor(level * 0.6); // Враги на платформах
+    // УВЕЛИЧЕННОЕ количество врагов
+    const groundEnemyCount = 4 + Math.floor(level * 1.2); // Было 2 + level * 0.8
+    const flyingEnemyCount = 2 + Math.floor(level * 0.8); // Было 1 + level * 0.5
+    const platformEnemyCount = 3 + Math.floor(level * 0.6); // Было 2 + level * 0.4
     
     // Наземные враги
     for (let i = 0; i < groundEnemyCount; i++) {
-        const enemyX = 300 + (i * 300);
-        const patrolRange = 150 + Math.random() * 150;
+        const enemyX = 300 + (i * Math.floor((levelWidth - 600) / groundEnemyCount));
+        const patrolRange = 120 + Math.random() * 100;
         
         enemies.push({
             x: enemyX,
             y: levelHeight - 70,
             width: 60,
             height: 60,
-            speed: 2.5 + level * 0.4,
+            speed: 2 + level * 0.3,
             direction: i % 2 === 0 ? 1 : -1,
             patrolRange: patrolRange,
             startX: enemyX,
@@ -405,18 +416,23 @@ function createEnemies() {
     
     // Враги на платформах
     for (let i = 0; i < platformEnemyCount; i++) {
-        const platformEnemy = findPlatformForEnemy(180);
-        if (platformEnemy) {
-            const platform = platformEnemy.platform;
+        const suitablePlatforms = platforms.filter(p => 
+            p.width >= 150 && // Уменьшаем минимальную ширину платформы
+            p.y < levelHeight - 100 &&
+            p.x > 200 && p.x < levelWidth - 400 // Расширяем диапазон
+        );
+        
+        if (suitablePlatforms.length > 0) {
+            const platform = suitablePlatforms[Math.floor(Math.random() * suitablePlatforms.length)];
             
             enemies.push({
-                x: platformEnemy.x,
-                y: platformEnemy.y,
+                x: platform.x + 20,
+                y: platform.y - 60,
                 width: 50,
                 height: 50,
-                speed: 1.8 + level * 0.3,
+                speed: 1.5 + level * 0.2,
                 direction: Math.random() > 0.5 ? 1 : -1,
-                patrolRange: platform.width - 40, // Патрулируют по всей платформе
+                patrolRange: platform.width - 60,
                 startX: platform.x + platform.width / 2,
                 color: '#E74C3C',
                 type: 'platform',
@@ -428,30 +444,51 @@ function createEnemies() {
     }
     
     // Летающие враги
-    for (let i = 0; i < flyingEnemyCount; i++) {
-        const flyX = 400 + (i * 400);
-        const flyY = 500 + Math.random() * 400;
+     for (let i = 0; i < flyingEnemyCount; i++) {
+        const flyX = 400 + (i * Math.floor((levelWidth - 800) / flyingEnemyCount));
+        
+        // РАЗНЫЕ ВЫСОТЫ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
+        let flyY;
+        const heightTier = i % 3; // 3 разных уровня высоты
+        
+        if (heightTier === 0) {
+            // Низкий уровень - над землей и нижними платформами
+            flyY = 700 + Math.random() * 150; // 500-650
+        } else if (heightTier === 1) {
+            // Средний уровень
+            flyY = 550 + Math.random() * 100; // 350-450
+        } else {
+            // Высокий уровень - под верхом уровня
+            flyY = 400 + Math.random() * 100; // 200-300
+        }
+        
+        // Добавляем случайное смещение для разнообразия
+        flyY += Math.random() * 50 - 25;
+        
+        // Гарантируем, что враги не вылетают за пределы уровня
+        flyY = Math.max(150, Math.min(700, flyY));
         
         enemies.push({
             x: flyX,
             y: flyY,
             width: 50,
             height: 50,
-            speed: 2 + level * 0.3,
+            speed: 1.8 + level * 0.2,
             direction: 1,
-            patrolRange: 250,
+            patrolRange: 200,
             startX: flyX,
             isFlying: true,
             color: '#9B59B6',
             type: 'flying',
-            verticalSpeed: 0.5 + Math.random() * 0.5,
-            verticalRange: 80 + Math.random() * 70
+            verticalSpeed: 0.4 + Math.random() * 0.3,
+            verticalRange: 60 + Math.random() * 50,
+            heightTier: heightTier // Добавляем информацию о уровне высоты
         });
     }
     
     // Быстрые враги на высоких уровнях
-    if (level >= 3) {
-        const fastEnemyCount = Math.floor(level / 2);
+    if (level >= 3) { // Уменьшаем порог уровня
+        const fastEnemyCount = 1 + Math.floor(level / 2); // Увеличиваем количество
         for (let i = 0; i < fastEnemyCount; i++) {
             const fastX = 600 + (i * 500);
             
@@ -460,9 +497,9 @@ function createEnemies() {
                 y: levelHeight - 70,
                 width: 45,
                 height: 45,
-                speed: 4 + level * 0.5,
+                speed: 3.5 + level * 0.4,
                 direction: 1,
-                patrolRange: 200,
+                patrolRange: 150,
                 startX: fastX,
                 color: '#C0392B',
                 type: 'fast'
@@ -470,22 +507,27 @@ function createEnemies() {
         }
     }
     
-    // Прыгающие враги на платформах (с 2 уровня)
-    if (level >= 2) {
-        const jumpingEnemyCount = 1 + Math.floor(level / 2);
+    // Прыгающие враги на платформах
+    if (level >= 2) { // Уменьшаем порог уровня
+        const jumpingEnemyCount = 1 + Math.floor(level / 2); // Увеличиваем количество
         for (let i = 0; i < jumpingEnemyCount; i++) {
-            const platformEnemy = findPlatformForEnemy(200);
-            if (platformEnemy) {
-                const platform = platformEnemy.platform;
+            const suitablePlatforms = platforms.filter(p => 
+                p.width >= 180 && 
+                p.y < levelHeight - 100 &&
+                p.x > 200 && p.x < levelWidth - 400
+            );
+            
+            if (suitablePlatforms.length > 0) {
+                const platform = suitablePlatforms[Math.floor(Math.random() * suitablePlatforms.length)];
                 
                 enemies.push({
-                    x: platformEnemy.x,
-                    y: platformEnemy.y,
+                    x: platform.x + 20,
+                    y: platform.y - 60,
                     width: 45,
                     height: 45,
-                    speed: 2 + level * 0.2,
+                    speed: 1.8 + level * 0.15,
                     direction: 1,
-                    patrolRange: platform.width - 60,
+                    patrolRange: platform.width - 80,
                     startX: platform.x + platform.width / 2,
                     color: '#D35400',
                     type: 'jumping',
@@ -495,6 +537,27 @@ function createEnemies() {
                     velY: 0
                 });
             }
+        }
+    }
+    
+    // Дополнительные враги в конце уровня
+    if (level >= 1) { // Добавляем с первого уровня
+        const endGameEnemies = 2 + Math.floor(level / 1.5); // Увеличиваем количество
+        for (let i = 0; i < endGameEnemies; i++) {
+            const endX = levelWidth - 500 - (i * 150);
+            
+            enemies.push({
+                x: endX,
+                y: levelHeight - 70,
+                width: 55,
+                height: 55,
+                speed: 2.5 + level * 0.3,
+                direction: -1,
+                patrolRange: 100,
+                startX: endX,
+                color: '#16A085',
+                type: 'ground'
+            });
         }
     }
     
@@ -510,7 +573,7 @@ function init() {
     
     // Сброс счетчиков уровня
     coinsCollectedInLevel = 0;
-    coinsToWin = 15 + level * 3;
+    coinsToWin = 15 + level * 7;
     
     // Создание уровня
     platforms = [];
@@ -533,10 +596,15 @@ function init() {
     
     console.log(`Основной путь: ${mainPath.totalCoins} монет`);
     
+    // Добавляем монеты на земле
+    const groundCoins = createGroundCoins();
+    coinsList.push(...groundCoins);
+    console.log(`Добавлено ${groundCoins.length} монет на земле`);
+    
     // Если монет недостаточно, добавляем дополнительные платформы
-    if (mainPath.totalCoins < coinsToWin) {
-        const neededCoins = coinsToWin - mainPath.totalCoins + 10;
-        const additional = createAdditionalPlatforms(mainPath.platforms, mainPath.coins, neededCoins);
+    if (mainPath.totalCoins + groundCoins.length < coinsToWin) {
+        const neededCoins = coinsToWin - (mainPath.totalCoins + groundCoins.length) + 5; // +5 вместо +10
+        const additional = createAdditionalPlatforms(mainPath.platforms, [...mainPath.coins, ...groundCoins], neededCoins);
         platforms.push(...additional.platforms);
         coinsList.push(...additional.coins);
         
@@ -550,12 +618,25 @@ function init() {
         const x = Math.random() * (levelWidth - 400) + 200;
         const y = Math.random() * 300 + 700;
         
-        const platform = createRandomPlatform(x, y);
-        platform.hasCoins = true;
+        let overlaps = false;
+        for (let platform of platforms) {
+            if (Math.abs(x - platform.x) < 200 && Math.abs(y - platform.y) < 100) {
+                overlaps = true;
+                break;
+            }
+        }
         
-        platforms.push(platform);
-        const platformCoins = createCoinsOnPlatform(platform);
-        coinsList.push(...platformCoins);
+        if (!overlaps) {
+            const platform = createRandomPlatform(x, y);
+            platform.hasCoins = true;
+            
+            platforms.push(platform);
+            const platformCoins = createCoinsOnPlatform(platform);
+            if (platformCoins.length > 1) {
+                platformCoins.splice(1); // Максимум 1 монета на дополнительной платформе
+            }
+            coinsList.push(...platformCoins);
+        }
     }
     
     console.log(`Всего монет на уровне: ${coinsList.length}, нужно: ${coinsToWin}`);
@@ -574,8 +655,13 @@ function init() {
     player.jumping = false;
     player.direction = 1;
     
+    // Инициализация камеры - фиксированная вертикальная позиция
     camera.x = 0;
-    camera.y = 0;
+    camera.y = levelHeight - camera.height;
+    
+    // Ограничения по вертикали
+    if (camera.y < 0) camera.y = 0;
+    if (camera.y + camera.height > levelHeight) camera.y = levelHeight - camera.height;
     
     coins = 0;
     coinCountElement.textContent = coins;
@@ -612,10 +698,19 @@ function updateLevelGoalDisplay() {
 
 // Обновление камеры для следования за игроком
 function updateCamera() {
+    // Горизонтальное положение камеры
     camera.x = player.x - camera.width / 2;
     
+    // Фиксированная вертикальная позиция - показываем нижнюю часть уровня
+    camera.y = levelHeight - camera.height;
+    
+    // Ограничения по горизонтали
     if (camera.x < 0) camera.x = 0;
     if (camera.x + camera.width > levelWidth) camera.x = levelWidth - camera.width;
+    
+    // Ограничения по вертикали (на всякий случай)
+    if (camera.y < 0) camera.y = 0;
+    if (camera.y + camera.height > levelHeight) camera.y = levelHeight - camera.height;
 }
 
 // Отрисовка SVG части кота
@@ -701,40 +796,46 @@ function updatePlatformEnemies() {
             
             if (!platform) continue;
             
-            // Горизонтальное движение
-            enemy.x += enemy.speed * enemy.direction;
+            // Проверяем, находится ли враг в зоне видимости камеры
+            const isVisible = enemy.x < camera.x + camera.width && enemy.x + enemy.width > camera.x;
             
-            // Проверка границ платформы
-            if (enemy.x <= platform.x + 10 || enemy.x + enemy.width >= platform.x + platform.width - 10) {
-                enemy.direction *= -1;
-            }
-            
-            // Для прыгающих врагов
-            if (enemy.type === 'jumping') {
-                enemy.jumpCooldown--;
+            // Обновляем только видимых врагов для оптимизации
+            if (isVisible) {
+                // Горизонтальное движение
+                enemy.x += enemy.speed * enemy.direction;
                 
-                // Периодически прыгают
-                if (enemy.jumpCooldown <= 0 && Math.random() > 0.95) {
-                    enemy.velY = -12;
-                    enemy.grounded = false;
-                    enemy.jumpCooldown = 60 + Math.random() * 60;
+                // Проверка границ платформы
+                if (enemy.x <= platform.x + 10 || enemy.x + enemy.width >= platform.x + platform.width - 10) {
+                    enemy.direction *= -1;
                 }
                 
-                // Применение гравитации
-                if (!enemy.grounded) {
-                    enemy.velY += gravity * 0.8;
-                    enemy.y += enemy.velY;
+                // Для прыгающих врагов
+                if (enemy.type === 'jumping') {
+                    enemy.jumpCooldown--;
                     
-                    // Проверка приземления на платформу
-                    if (enemy.y + enemy.height > platform.y && enemy.velY > 0) {
-                        enemy.y = platform.y - enemy.height;
-                        enemy.velY = 0;
-                        enemy.grounded = true;
+                    // Периодически прыгают
+                    if (enemy.jumpCooldown <= 0 && Math.random() > 0.95) {
+                        enemy.velY = -12;
+                        enemy.grounded = false;
+                        enemy.jumpCooldown = 60 + Math.random() * 60;
                     }
+                    
+                    // Применение гравитации
+                    if (!enemy.grounded) {
+                        enemy.velY += gravity * 0.8;
+                        enemy.y += enemy.velY;
+                        
+                        // Проверка приземления на платформу
+                        if (enemy.y + enemy.height > platform.y && enemy.velY > 0) {
+                            enemy.y = platform.y - enemy.height;
+                            enemy.velY = 0;
+                            enemy.grounded = true;
+                        }
+                    }
+                } else {
+                    // Обычные враги на платформах всегда на платформе
+                    enemy.y = platform.y - enemy.height;
                 }
-            } else {
-                // Обычные враги на платформах всегда на платформе
-                enemy.y = platform.y - enemy.height;
             }
         }
     }
@@ -779,7 +880,7 @@ function updateEnemies() {
 
 // Отрисовка игры с учетом камеры
 function draw() {
-    // Очистка canvas
+    // Очистка canvas (теперь очищаем только видимую область)
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     
     // Сохраняем текущее состояние контекста
@@ -792,17 +893,17 @@ function draw() {
     if (svgImages.background) {
         const pattern = ctx.createPattern(svgImages.background, 'repeat');
         ctx.fillStyle = pattern;
-        ctx.fillRect(0, 0, levelWidth, levelHeight);
+        ctx.fillRect(camera.x, camera.y, levelWidth, levelHeight);
     } else {
         const gradient = ctx.createLinearGradient(0, 0, 0, levelHeight);
         gradient.addColorStop(0, '#87CEEB');
         gradient.addColorStop(0.7, '#1E90FF');
         gradient.addColorStop(1, '#0066CC');
         ctx.fillStyle = gradient;
-        ctx.fillRect(0, 0, levelWidth, levelHeight);
+        ctx.fillRect(camera.x, camera.y, levelWidth, levelHeight);
     }
     
-    // Рисование платформ
+    // Рисование только видимых платформ
     for (let platform of platforms) {
         if (platform.x < camera.x + camera.width && platform.x + platform.width > camera.x) {
             ctx.fillStyle = platform.color;
@@ -822,7 +923,7 @@ function draw() {
         }
     }
     
-    // Рисование монет
+    // Рисование только видимых монет
     for (let coin of coinsList) {
         if (!coin.collected && coin.x < camera.x + camera.width && coin.x + coin.width > camera.x) {
             // Используем анимацию подпрыгивания с уменьшенной амплитудой
@@ -859,7 +960,7 @@ function draw() {
         }
     }
     
-    // Рисование врагов
+    // Рисование только видимых врагов
     for (let enemy of enemies) {
         if (enemy.x < camera.x + camera.width && enemy.x + enemy.width > camera.x) {
             // Разные цвета для разных типов врагов
@@ -964,38 +1065,6 @@ function draw() {
     // Восстанавливаем состояние контекста
     ctx.restore();
     
-    // Отрисовка HUD с информацией о цели уровня
-    ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-    ctx.fillRect(10, 10, 300, 90);
-    
-    ctx.fillStyle = 'white';
-    ctx.font = '16px Arial';
-    ctx.textAlign = 'left';
-    ctx.fillText(`Монеты: ${coins}`, 20, 35);
-    ctx.fillText(`Жизни: ${lives}`, 20, 55);
-    ctx.fillText(`Уровень: ${level}`, 20, 75);
-    
-    const goalText = `Цель: ${coinsCollectedInLevel}/${coinsToWin} монет`;
-    const goalWidth = ctx.measureText(goalText).width;
-    ctx.fillText(goalText, 320 - goalWidth, 35);
-    
-    // Прогресс-бар сбора монет
-    const progressWidth = 280;
-    const progress = Math.min(1, coinsCollectedInLevel / coinsToWin);
-    
-    ctx.fillStyle = '#34495e';
-    ctx.fillRect(20, 85, progressWidth, 10);
-    
-    if (progress > 0) {
-        const gradient = ctx.createLinearGradient(20, 85, 20 + progressWidth, 85);
-        gradient.addColorStop(0, '#e74c3c');
-        gradient.addColorStop(0.5, '#f39c12');
-        gradient.addColorStop(1, '#2ecc71');
-        
-        ctx.fillStyle = gradient;
-        ctx.fillRect(20, 85, progressWidth * progress, 10);
-    }
-    
     // Если игра на паузе
     if (gameState === 'paused') {
         ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
@@ -1009,6 +1078,32 @@ function draw() {
         ctx.font = '24px Arial';
         ctx.fillText(`Собрано монет: ${coinsCollectedInLevel}/${coinsToWin}`, canvas.width / 2, canvas.height / 2 + 50);
     }
+}
+
+function createGroundCoins() {
+    const groundCoins = [];
+    const coinCount = 10 + level * 2; // 10-20 монет на земле в зависимости от уровня
+    
+    for (let i = 0; i < coinCount; i++) {
+        const x = 300 + Math.random() * (levelWidth - 600);
+        
+        groundCoins.push({
+            x: x,
+            y: levelHeight - 60, // Над землей
+            width: 30,
+            height: 30,
+            color: '#ffcc00',
+            collected: false,
+            platformId: -1, // -1 означает, что монета на земле
+            originalY: levelHeight - 60,
+            bounceOffset: 0,
+            bounceSpeed: 0.08 + Math.random() * 0.04,
+            bouncePhase: Math.random() * Math.PI * 2,
+            isHighCoin: false
+        });
+    }
+    
+    return groundCoins;
 }
 
 // Обработка ввода с клавиатуры
@@ -1176,16 +1271,26 @@ function update() {
     }
     
     // Проверка столкновения с врагами
-    for (let enemy of enemies) {
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let enemy = enemies[i];
         if (player.x < enemy.x + enemy.width &&
             player.x + player.width > enemy.x &&
             player.y < enemy.y + enemy.height &&
             player.y + player.height > enemy.y) {
             
             if (player.velY > 0 && player.y + player.height < enemy.y + enemy.height/2) {
-                // Игрок прыгает на врага
-                enemy.y = levelHeight + 100; // Убираем врага
+                // Игрок прыгает на врага - враг умирает
+                enemies.splice(i, 1); // Удаляем врага из массива
                 player.velY = -12;
+                
+                // Добавляем монеты за убийство врага
+                coins += 2;
+                coinsCollectedInLevel += 2;
+                coinCountElement.textContent = coins;
+                updateLevelGoalDisplay();
+                
+                // Визуальный эффект получения монет
+                console.log(`+2 монеты за убийство врага!`);
             } else {
                 // Игрок получает урон
                 player.x = 100;
@@ -1260,7 +1365,7 @@ startButton.addEventListener('click', () => {
 // Перезапуск игры
 restartButton.addEventListener('click', () => {
     gameOverScreen.classList.add('hidden');
-    lives = 3;
+    lives = 150;
     coins = 0;
     level = 1;
     gameState = 'playing';
