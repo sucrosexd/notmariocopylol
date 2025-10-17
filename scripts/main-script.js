@@ -4,14 +4,19 @@ const ctx = canvas.getContext('2d');
 const startScreen = document.getElementById('startScreen');
 const gameOverScreen = document.getElementById('gameOverScreen');
 const levelCompleteScreen = document.getElementById('levelCompleteScreen');
+const pauseScreen = document.getElementById('pauseScreen');
 const startButton = document.getElementById('startButton');
 const restartButton = document.getElementById('restartButton');
 const nextLevelButton = document.getElementById('nextLevelButton');
+const resumeButton = document.getElementById('resumeButton');
+const restartPauseButton = document.getElementById('restartPauseButton');
 const coinCountElement = document.getElementById('coinCount');
 const livesCountElement = document.getElementById('livesCount');
 const levelCountElement = document.getElementById('levelCount');
 const finalScoreElement = document.getElementById('finalScore');
 const levelCoinsElement = document.getElementById('levelCoins');
+const pauseCoinsElement = document.getElementById('pauseCoins');
+const pauseGoalElement = document.getElementById('pauseGoal');
 const gamepadStatusElement = document.getElementById('gamepadStatus');
 
 // Игровые переменные
@@ -35,6 +40,12 @@ let isFacingRight = true;
 let isAttacking = false;
 let attackCooldown = 0;
 let animationTime = 0;
+
+// Система получения урона
+let isInvulnerable = false;
+let invulnerabilityTimer = 0;
+const INVULNERABILITY_DURATION = 180; // 3 секунды при 60 FPS
+let damageFlashTimer = 0;
 
 // Размер уровня
 let levelWidth = 4800;
@@ -329,7 +340,6 @@ function createLevelPath() {
     
     return { platforms: pathPlatforms, coins: pathCoins, totalCoins: totalCoins };
 }
-
 
 // Создание дополнительных платформ для увеличения количества монет
 function createAdditionalPlatforms(mainPlatforms, mainCoins, targetCoins) {
@@ -655,6 +665,11 @@ function init() {
     player.jumping = false;
     player.direction = 1;
     
+    // Сброс системы урона
+    isInvulnerable = false;
+    invulnerabilityTimer = 0;
+    damageFlashTimer = 0;
+    
     // Инициализация камеры - фиксированная вертикальная позиция
     camera.x = 0;
     camera.y = levelHeight - camera.height;
@@ -737,6 +752,12 @@ function drawCat() {
     const y = player.y + player.height / 2;
     
     ctx.save();
+    
+    // Эффект мигания при получении урона
+    if (damageFlashTimer > 0) {
+        ctx.globalAlpha = 0.5;
+    }
+    
     ctx.translate(x, y);
     ctx.scale(player.direction, 1);
     
@@ -1064,20 +1085,6 @@ function draw() {
     
     // Восстанавливаем состояние контекста
     ctx.restore();
-    
-    // Если игра на паузе
-    if (gameState === 'paused') {
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.7)';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-        
-        ctx.fillStyle = 'white';
-        ctx.font = '48px Arial';
-        ctx.textAlign = 'center';
-        ctx.fillText('ПАУЗА', canvas.width / 2, canvas.height / 2);
-        
-        ctx.font = '24px Arial';
-        ctx.fillText(`Собрано монет: ${coinsCollectedInLevel}/${coinsToWin}`, canvas.width / 2, canvas.height / 2 + 50);
-    }
 }
 
 function createGroundCoins() {
@@ -1104,6 +1111,42 @@ function createGroundCoins() {
     }
     
     return groundCoins;
+}
+
+// Обработка получения урона
+function takeDamage() {
+    if (isInvulnerable) return; // Не получаем урон во время неуязвимости
+    
+    lives--;
+    livesCountElement.textContent = lives;
+    
+    // Активируем неуязвимость
+    isInvulnerable = true;
+    invulnerabilityTimer = INVULNERABILITY_DURATION;
+    damageFlashTimer = 10; // Начинаем мигание
+    
+    if (lives <= 0) {
+        gameState = 'gameOver';
+        gameOverScreen.classList.remove('hidden');
+        finalScoreElement.textContent = coins;
+    }
+}
+
+// Обновление системы урона
+function updateDamageSystem() {
+    if (isInvulnerable) {
+        invulnerabilityTimer--;
+        
+        // Мигание каждые 5 кадров
+        if (invulnerabilityTimer % 10 < 5) {
+            damageFlashTimer = 5;
+        }
+        
+        if (invulnerabilityTimer <= 0) {
+            isInvulnerable = false;
+            damageFlashTimer = 0;
+        }
+    }
 }
 
 // Обработка ввода с клавиатуры
@@ -1145,9 +1188,14 @@ function update() {
         // Переключаем состояние паузы
         if (gameState === 'playing') {
             gameState = 'paused';
+            pauseScreen.classList.remove('hidden');
+            // Обновляем информацию в меню паузы
+            pauseCoinsElement.textContent = coinsCollectedInLevel;
+            pauseGoalElement.textContent = coinsToWin;
             console.log('Игра на паузе');
         } else if (gameState === 'paused') {
             gameState = 'playing';
+            pauseScreen.classList.add('hidden');
             console.log('Игра продолжена');
         }
         pauseKeyPressed = true;
@@ -1160,6 +1208,9 @@ function update() {
     if (keyboardPauseReleased && gamepadPauseReleased) {
         pauseKeyPressed = false;
     }
+    
+    // Обновление системы урона (всегда, даже в паузе для анимации)
+    updateDamageSystem();
     
     // Если игра не в состоянии playing, не обновляем игровую логику
     if (gameState !== 'playing') return;
@@ -1226,14 +1277,7 @@ function update() {
     if (player.y > levelHeight) {
         player.y = 800;
         player.x = 100;
-        lives--;
-        livesCountElement.textContent = lives;
-        
-        if (lives <= 0) {
-            gameState = 'gameOver';
-            gameOverScreen.classList.remove('hidden');
-            finalScoreElement.textContent = coins;
-        }
+        takeDamage(); // Используем новую систему урона
     }
     
     // Сброс grounded статуса
@@ -1291,18 +1335,9 @@ function update() {
                 
                 // Визуальный эффект получения монет
                 console.log(`+2 монеты за убийство врага!`);
-            } else {
-                // Игрок получает урон
-                player.x = 100;
-                player.y = 800;
-                lives--;
-                livesCountElement.textContent = lives;
-                
-                if (lives <= 0) {
-                    gameState = 'gameOver';
-                    gameOverScreen.classList.remove('hidden');
-                    finalScoreElement.textContent = coins;
-                }
+            } else if (!isInvulnerable) { // проверка неуязвимости
+                // Игрок получает урон (используем новую систему)
+                takeDamage();
             }
         }
     }
@@ -1382,6 +1417,22 @@ nextLevelButton.addEventListener('click', () => {
     
     // Увеличиваем сложность
     player.speed += 0.3;
+});
+
+// Продолжение игры из паузы
+resumeButton.addEventListener('click', () => {
+    pauseScreen.classList.add('hidden');
+    gameState = 'playing';
+});
+
+// Рестарт из паузы
+restartPauseButton.addEventListener('click', () => {
+    pauseScreen.classList.add('hidden');
+    lives = 150;
+    coins = 0;
+    level = 1;
+    gameState = 'playing';
+    init();
 });
 
 // Слушатели событий клавиатуры
