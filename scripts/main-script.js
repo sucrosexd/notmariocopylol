@@ -101,7 +101,7 @@ async function loadAllSVGs() {
       loadSVG("rightHip", "./assets/images/characters/character/right_hip.svg"),
       loadSVG("leftShin", "./assets/images/characters/character/left_shin.svg"),
       loadSVG("rightShin", "./assets/images/characters/character/right_shin.svg"),
-      loadSVG("background", "./assets/images/fon.svg"),
+      loadSVG("background", "./assets/images/backgrounds/fon.svg"),
     ]);
     console.log("Все SVG изображения кота загружены успешно");
   } catch (error) {
