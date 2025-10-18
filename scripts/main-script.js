@@ -91,16 +91,16 @@ function loadSVG(id, src) {
 async function loadAllSVGs() {
   try {
     await Promise.all([
-      loadSVG("head", "./assets/character/head.svg"),
-      loadSVG("body", "./assets/character/body.svg"),
-      loadSVG("leftShoulder", "./assets/character/left_shoulder.svg"),
-      loadSVG("rightShoulder", "./assets/character/right_shoulder.svg"),
-      loadSVG("leftForearm", "./assets/character/left_forearm.svg"),
-      loadSVG("rightForearm", "./assets/character/right_forearm.svg"),
-      loadSVG("leftHip", "./assets/character/left_hip.svg"),
-      loadSVG("rightHip", "./assets/character/right_hip.svg"),
-      loadSVG("leftShin", "./assets/character/left_shin.svg"),
-      loadSVG("rightShin", "./assets/character/right_shin.svg"),
+      loadSVG("head", "./assets/images/characters/character/head.svg"),
+      loadSVG("body", "./assets/images/characters/character/body.svg"),
+      loadSVG("leftShoulder", "./assets/images/characters/character/left_shoulder.svg"),
+      loadSVG("rightShoulder", "./assets/images/characters/character/right_shoulder.svg"),
+      loadSVG("leftForearm", "./assets/images/characters/character/left_forearm.svg"),
+      loadSVG("rightForearm", "./assets/images/characters/character/right_forearm.svg"),
+      loadSVG("leftHip", "./assets/images/characters/character/left_hip.svg"),
+      loadSVG("rightHip", "./assets/images/characters/character/right_hip.svg"),
+      loadSVG("leftShin", "./assets/images/characters/character/left_shin.svg"),
+      loadSVG("rightShin", "./assets/images/characters/character/right_shin.svg"),
       loadSVG("background", "./assets/images/fon.svg"),
     ]);
     console.log("Все SVG изображения кота загружены успешно");
