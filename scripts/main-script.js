@@ -93,14 +93,29 @@ async function loadAllSVGs() {
     await Promise.all([
       loadSVG("head", "./assets/images/characters/character/head.svg"),
       loadSVG("body", "./assets/images/characters/character/body.svg"),
-      loadSVG("leftShoulder", "./assets/images/characters/character/left_shoulder.svg"),
-      loadSVG("rightShoulder", "./assets/images/characters/character/right_shoulder.svg"),
-      loadSVG("leftForearm", "./assets/images/characters/character/left_forearm.svg"),
-      loadSVG("rightForearm", "./assets/images/characters/character/right_forearm.svg"),
+      loadSVG(
+        "leftShoulder",
+        "./assets/images/characters/character/left_shoulder.svg",
+      ),
+      loadSVG(
+        "rightShoulder",
+        "./assets/images/characters/character/right_shoulder.svg",
+      ),
+      loadSVG(
+        "leftForearm",
+        "./assets/images/characters/character/left_forearm.svg",
+      ),
+      loadSVG(
+        "rightForearm",
+        "./assets/images/characters/character/right_forearm.svg",
+      ),
       loadSVG("leftHip", "./assets/images/characters/character/left_hip.svg"),
       loadSVG("rightHip", "./assets/images/characters/character/right_hip.svg"),
       loadSVG("leftShin", "./assets/images/characters/character/left_shin.svg"),
-      loadSVG("rightShin", "./assets/images/characters/character/right_shin.svg"),
+      loadSVG(
+        "rightShin",
+        "./assets/images/characters/character/right_shin.svg",
+      ),
       loadSVG("background", "./assets/images/backgrounds/fon/fon.svg"),
     ]);
     console.log("Все SVG изображения кота загружены успешно");
@@ -1287,14 +1302,15 @@ function createTouchControls() {
   touchContainer.id = "touchControls";
   touchContainer.style.cssText = `
         position: fixed;
-        bottom: 20px;
+        bottom: 10px;
         left: 0;
         right: 0;
         display: flex;
         justify-content: space-between;
-        padding: 0 20px;
+        padding: 0 15px;
         z-index: 1000;
         touch-action: manipulation;
+        pointer-events: none;
     `;
 
   // Левая часть - управление движением
@@ -1304,7 +1320,8 @@ function createTouchControls() {
         grid-template-areas:
             ". up ."
             "left down right";
-        gap: 10px;
+        gap: 8px;
+        pointer-events: auto;
     `;
 
   // Создаем кнопки направления
@@ -1319,18 +1336,20 @@ function createTouchControls() {
     const btn = document.createElement("button");
     btn.textContent = dir.text;
     btn.style.cssText = `
-            width: 60px;
-            height: 60px;
+            width: 45px;
+            height: 45px;
             border-radius: 50%;
             background: rgba(255, 255, 255, 0.3);
             border: 2px solid white;
             color: white;
-            font-size: 20px;
+            font-size: 16px;
             font-weight: bold;
             grid-area: ${dir.area};
             touch-action: manipulation;
             user-select: none;
             -webkit-user-select: none;
+            pointer-events: auto;
+            outline: none;
         `;
 
     // Обработчики для сенсорного ввода
@@ -1360,39 +1379,45 @@ function createTouchControls() {
   rightControls.style.cssText = `
         display: flex;
         flex-direction: column;
-        gap: 20px;
+        gap: 15px;
+        pointer-events: auto;
     `;
 
   // Кнопка прыжка
   const jumpBtn = document.createElement("button");
-  jumpBtn.textContent = "Прыжок";
+  jumpBtn.textContent = "↑";
   jumpBtn.style.cssText = `
-        width: 80px;
-        height: 80px;
+        width: 55px;
+        height: 55px;
         border-radius: 50%;
         background: rgba(76, 175, 80, 0.3);
         border: 2px solid #4CAF50;
         color: white;
-        font-size: 16px;
+        font-size: 20px;
+        font-weight: bold;
         touch-action: manipulation;
         user-select: none;
         -webkit-user-select: none;
+        pointer-events: auto;
+        outline: none;
     `;
 
   // Кнопка атаки
   const attackBtn = document.createElement("button");
-  attackBtn.textContent = "Атака";
+  attackBtn.textContent = "⚔";
   attackBtn.style.cssText = `
-        width: 80px;
-        height: 80px;
+        width: 55px;
+        height: 55px;
         border-radius: 50%;
         background: rgba(244, 67, 54, 0.3);
         border: 2px solid #F44336;
         color: white;
-        font-size: 16px;
+        font-size: 18px;
         touch-action: manipulation;
         user-select: none;
         -webkit-user-select: none;
+        pointer-events: auto;
+        outline: none;
     `;
 
   // Обработчики для кнопки прыжка
@@ -1408,6 +1433,12 @@ function createTouchControls() {
     jumpBtn.style.background = "rgba(76, 175, 80, 0.3)";
   });
 
+  jumpBtn.addEventListener("touchcancel", (e) => {
+    e.preventDefault();
+    touchControls.up = false;
+    jumpBtn.style.background = "rgba(76, 175, 80, 0.3)";
+  });
+
   // Обработчики для кнопки атаки
   attackBtn.addEventListener("touchstart", (e) => {
     e.preventDefault();
@@ -1416,6 +1447,12 @@ function createTouchControls() {
   });
 
   attackBtn.addEventListener("touchend", (e) => {
+    e.preventDefault();
+    touchControls.attack = false;
+    attackBtn.style.background = "rgba(244, 67, 54, 0.3)";
+  });
+
+  attackBtn.addEventListener("touchcancel", (e) => {
     e.preventDefault();
     touchControls.attack = false;
     attackBtn.style.background = "rgba(244, 67, 54, 0.3)";
