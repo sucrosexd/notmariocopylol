@@ -26,13 +26,6 @@ let lives = 150;
 let level = 1;
 let gamepad = null;
 let isGamepadConnected = false;
-let touchControls = {
-  left: false,
-  right: false,
-  up: false,
-  down: false,
-  attack: false,
-};
 
 // Цели уровня
 let coinsToWin = 20; // Количество монет для завершения уровня
@@ -624,18 +617,6 @@ function createEnemies() {
 // Инициализация игры
 function init() {
   console.log("Инициализация игры...");
-
-  // Удаляем старые сенсорные элементы если есть
-  const oldTouchControls = document.getElementById("touchControls");
-  if (oldTouchControls) {
-    oldTouchControls.remove();
-  }
-
-  // Создаем сенсорное управление для мобильных устройств
-  if (isMobileDevice()) {
-    createTouchControls();
-    console.log("Сенсорное управление создано для мобильного устройства");
-  }
 
   // Установка размера canvas
   resizeCanvas();
@@ -1265,215 +1246,21 @@ function handleKeyboardInput() {
     attackCooldown = 25;
   }
 
-  if (touchControls.left) {
-    player.velX = -player.speed;
-    player.direction = -1;
-  } else if (touchControls.right) {
-    player.velX = player.speed;
-    player.direction = 1;
-  }
-
   // Прыжок (сенсорный или клавиатура)
-  if (
-    (touchControls.up || keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) &&
-    player.grounded
-  ) {
+  if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && player.grounded) {
     player.velY = -18;
     player.jumping = true;
     player.grounded = false;
   }
 
   // Способность спускаться по платформам
-  downKeyPressed = touchControls.down || keys["ArrowDown"] || keys["KeyS"];
+  downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
 
   // Атака (сенсорная или клавиатура)
-  if (
-    (touchControls.attack || keys["KeyX"] || keys["KeyF"]) &&
-    !isAttacking &&
-    attackCooldown <= 0
-  ) {
+  if ((keys["KeyX"] || keys["KeyF"]) && !isAttacking && attackCooldown <= 0) {
     isAttacking = true;
     attackCooldown = 25;
   }
-}
-function createTouchControls() {
-  // Создаем контейнер для сенсорного управления
-  const touchContainer = document.createElement("div");
-  touchContainer.id = "touchControls";
-  touchContainer.style.cssText = `
-        position: fixed;
-        bottom: 10px;
-        left: 0;
-        right: 0;
-        display: flex;
-        justify-content: space-between;
-        padding: 0 15px;
-        z-index: 1000;
-        touch-action: manipulation;
-        pointer-events: none;
-    `;
-
-  // Левая часть - управление движением
-  const leftControls = document.createElement("div");
-  leftControls.style.cssText = `
-        display: grid;
-        grid-template-areas:
-            ". up ."
-            "left down right";
-        gap: 8px;
-        pointer-events: auto;
-    `;
-
-  // Создаем кнопки направления
-  const directions = [
-    { key: "up", text: "↑", area: "up" },
-    { key: "left", text: "←", area: "left" },
-    { key: "down", text: "↓", area: "down" },
-    { key: "right", text: "→", area: "right" },
-  ];
-
-  directions.forEach((dir) => {
-    const btn = document.createElement("button");
-    btn.textContent = dir.text;
-    btn.style.cssText = `
-            width: 45px;
-            height: 45px;
-            border-radius: 50%;
-            background: rgba(255, 255, 255, 0.3);
-            border: 2px solid white;
-            color: white;
-            font-size: 16px;
-            font-weight: bold;
-            grid-area: ${dir.area};
-            touch-action: manipulation;
-            user-select: none;
-            -webkit-user-select: none;
-            pointer-events: auto;
-            outline: none;
-        `;
-
-    // Обработчики для сенсорного ввода
-    btn.addEventListener("touchstart", (e) => {
-      e.preventDefault();
-      touchControls[dir.key] = true;
-      btn.style.background = "rgba(255, 255, 255, 0.6)";
-    });
-
-    btn.addEventListener("touchend", (e) => {
-      e.preventDefault();
-      touchControls[dir.key] = false;
-      btn.style.background = "rgba(255, 255, 255, 0.3)";
-    });
-
-    btn.addEventListener("touchcancel", (e) => {
-      e.preventDefault();
-      touchControls[dir.key] = false;
-      btn.style.background = "rgba(255, 255, 255, 0.3)";
-    });
-
-    leftControls.appendChild(btn);
-  });
-
-  // Правая часть - прыжок и атака
-  const rightControls = document.createElement("div");
-  rightControls.style.cssText = `
-        display: flex;
-        flex-direction: column;
-        gap: 15px;
-        pointer-events: auto;
-    `;
-
-  // Кнопка прыжка
-  const jumpBtn = document.createElement("button");
-  jumpBtn.textContent = "↑";
-  jumpBtn.style.cssText = `
-        width: 55px;
-        height: 55px;
-        border-radius: 50%;
-        background: rgba(76, 175, 80, 0.3);
-        border: 2px solid #4CAF50;
-        color: white;
-        font-size: 20px;
-        font-weight: bold;
-        touch-action: manipulation;
-        user-select: none;
-        -webkit-user-select: none;
-        pointer-events: auto;
-        outline: none;
-    `;
-
-  // Кнопка атаки
-  const attackBtn = document.createElement("button");
-  attackBtn.textContent = "⚔";
-  attackBtn.style.cssText = `
-        width: 55px;
-        height: 55px;
-        border-radius: 50%;
-        background: rgba(244, 67, 54, 0.3);
-        border: 2px solid #F44336;
-        color: white;
-        font-size: 18px;
-        touch-action: manipulation;
-        user-select: none;
-        -webkit-user-select: none;
-        pointer-events: auto;
-        outline: none;
-    `;
-
-  // Обработчики для кнопки прыжка
-  jumpBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    touchControls.up = true;
-    jumpBtn.style.background = "rgba(76, 175, 80, 0.6)";
-  });
-
-  jumpBtn.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    touchControls.up = false;
-    jumpBtn.style.background = "rgba(76, 175, 80, 0.3)";
-  });
-
-  jumpBtn.addEventListener("touchcancel", (e) => {
-    e.preventDefault();
-    touchControls.up = false;
-    jumpBtn.style.background = "rgba(76, 175, 80, 0.3)";
-  });
-
-  // Обработчики для кнопки атаки
-  attackBtn.addEventListener("touchstart", (e) => {
-    e.preventDefault();
-    touchControls.attack = true;
-    attackBtn.style.background = "rgba(244, 67, 54, 0.6)";
-  });
-
-  attackBtn.addEventListener("touchend", (e) => {
-    e.preventDefault();
-    touchControls.attack = false;
-    attackBtn.style.background = "rgba(244, 67, 54, 0.3)";
-  });
-
-  attackBtn.addEventListener("touchcancel", (e) => {
-    e.preventDefault();
-    touchControls.attack = false;
-    attackBtn.style.background = "rgba(244, 67, 54, 0.3)";
-  });
-
-  rightControls.appendChild(jumpBtn);
-  rightControls.appendChild(attackBtn);
-
-  touchContainer.appendChild(leftControls);
-  touchContainer.appendChild(rightControls);
-
-  document.body.appendChild(touchContainer);
-}
-
-function isMobileDevice() {
-  return (
-    /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(
-      navigator.userAgent,
-    ) ||
-    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1)
-  ); // iPad iOS 13+
 }
 
 // Обновление игровой логики
@@ -1608,8 +1395,7 @@ function update() {
         (keys["ArrowDown"] ||
           keys["KeyS"] ||
           (isGamepadConnected &&
-            (gamepad.buttons[13]?.pressed || gamepad.axes[1] > 0.5)) ||
-          touchControls.down)
+            (gamepad.buttons[13]?.pressed || gamepad.axes[1] > 0.5)))
       ) {
         // Пропускаем эту платформу - игрок может пройти сквозь нее
         continue;
