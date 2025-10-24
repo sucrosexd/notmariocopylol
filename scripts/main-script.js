@@ -123,7 +123,7 @@ function playSound(name, volume = 1.0, rate = 1.0) {
 
   try {
     // Возобновляем контекст если приостановлен
-    if (audioContext.state === 'suspended') {
+    if (audioContext.state === "suspended") {
       audioContext.resume();
     }
 
@@ -151,9 +151,15 @@ async function loadAllSounds() {
 
   const soundFiles = [
     // Музыка
-    { name: "main_menu_theme", url: "./Assets/Audio/Music/MainTheme/main_menu_theme.mp3" },// пока без темы меню, приколы
+    {
+      name: "main_menu_theme",
+      url: "./Assets/Audio/Music/MainTheme/main_menu_theme.mp3",
+    }, // пока без темы меню, приколы
     // { name: "sad_theme", url: "./Assets/Audio/Music/MainTheme/sad_theme.mp3" }, // не используется
-    { name: "level_complete", url: "./Assets/Audio/Music/Levels/level_complete.mp3" },
+    {
+      name: "level_complete",
+      url: "./Assets/Audio/Music/Levels/level_complete.mp3",
+    },
     { name: "game_over", url: "./Assets/Audio/Music/Events/game_over.mp3" },
 
     // SFX игрока
@@ -161,12 +167,18 @@ async function loadAllSounds() {
     { name: "jump_hit", url: "./Assets/Audio/SFX/Player/jump_hit.mp3" },
     { name: "land", url: "./Assets/Audio/SFX/Player/land.mp3" },
     // { name: "move", url: "./Assets/Audio/SFX/Player/move.mp3" }, пока без этого прикола, ужасные звуки
-    { name: "player_damage", url: "./Assets/Audio/SFX/Player/player_damage.mp3" },
+    {
+      name: "player_damage",
+      url: "./Assets/Audio/SFX/Player/player_damage.mp3",
+    },
     { name: "player_death", url: "./Assets/Audio/SFX/Player/death.mp3" },
 
     // SFX врагов
     { name: "enemy_coin", url: "./Assets/Audio/SFX/Enemies/enemy_coin.mp3" },
-    { name: "enemy_defeat", url: "./Assets/Audio/SFX/Enemies/enemy_defeat.mp3" },
+    {
+      name: "enemy_defeat",
+      url: "./Assets/Audio/SFX/Enemies/enemy_defeat.mp3",
+    },
     { name: "enemy_attack", url: "./Assets/Audio/SFX/Enemies/enemy_hit.mp3" }, // пока не используется
 
     // SFX окружения
@@ -175,10 +187,12 @@ async function loadAllSounds() {
 
     // SFX UI
     { name: "ui_click", url: "./Assets/Audio/SFX/UI/click.wav" },
-    { name: "ui_pause", url: "./Assets/Audio/SFX/UI/pause.mp3" }
+    { name: "ui_pause", url: "./Assets/Audio/SFX/UI/pause.mp3" },
   ];
 
-  await Promise.all(soundFiles.map(sound => loadSound(sound.name, sound.url)));
+  await Promise.all(
+    soundFiles.map((sound) => loadSound(sound.name, sound.url)),
+  );
   console.log("Все звуки загружены");
 }
 
@@ -200,7 +214,7 @@ function playMusic(name, loop = true, volume = 0.6) {
 
   try {
     // Возобновляем контекст если приостановлен
-    if (audioContext.state === 'suspended') {
+    if (audioContext.state === "suspended") {
       audioContext.resume();
     }
 
@@ -256,7 +270,7 @@ function updateSFXVolume() {
 // ВКЛЮЧЕНИЕ ИГРОВОГО ЗВУКА
 function enableGameAudio() {
   if (audioEnabled) return;
-  
+
   initializeAudio();
   loadAllSounds().then(() => {
     playMusic("main_menu_theme", true, musicVolume);
@@ -265,20 +279,22 @@ function enableGameAudio() {
   });
 }
 
-// АВТОМАТИЧЕСКАЯ ПОПЫТКА ВКЛЮЧЕНИЯ ЗВУКА ПРИ ЗАГРУЗКЕ 
-window.addEventListener('DOMContentLoaded', () => {
+// АВТОМАТИЧЕСКАЯ ПОПЫТКА ВКЛЮЧЕНИЯ ЗВУКА ПРИ ЗАГРУЗКЕ
+window.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     try {
       enableGameAudio();
     } catch (error) {
-      console.log("Автоматическое включение звука не удалось, ждем пользователя");
+      console.log(
+        "Автоматическое включение звука не удалось, ждем пользователя",
+      );
     }
   }, 1000);
 });
 
 // ВКЛЮЧЕНИЕ ЗВУКА ПРИ ЛЮБОМ ВЗАИМОДЕЙСТВИИ ПОЛЬЗОВАТЕЛЯ
-document.addEventListener('click', enableGameAudio, { once: true });
-document.addEventListener('keydown', enableGameAudio, { once: true });
+document.addEventListener("click", enableGameAudio, { once: true });
+document.addEventListener("keydown", enableGameAudio, { once: true });
 
 // Загрузка SVG
 function loadSVG(id, src) {
@@ -489,7 +505,7 @@ function createLevelPath() {
   let totalCoins = 0;
 
   // УВЕЛИЧИВАЕМ количество платформ в основном пути
-  while (currentX < levelWidth - 400) {
+  while (currentX < flag.x - 300) {
     const platformType = Math.floor(Math.random() * 3);
     const templates = platformTemplates[platformType];
     const template = templates[Math.floor(Math.random() * templates.length)];
@@ -534,7 +550,7 @@ function createLevelPath() {
       currentX += platform.width + gapSize;
 
       // УВЕЛИЧИВАЕМ шанс создания дополнительных платформ
-      if (Math.random() > 0.7 && currentX < levelWidth - 600) {
+      if (Math.random() > 0.7 && currentX < levelWidth - 1000) {
         // 30% шанс вместо 15%
         const verticalDirection = Math.random() > 0.5 ? 1 : -1;
         const verticalHeightChange =
@@ -587,7 +603,7 @@ function createAdditionalPlatforms(mainPlatforms, mainCoins, targetCoins) {
 
   // Пока не достигнем целевого количества монет
   while (currentCoins < targetCoins) {
-    const x = Math.random() * (levelWidth - 400) + 200;
+    const x = Math.random() * (levelWidth - 800) + 200;
     const y = Math.random() * 300 + 700;
 
     // Проверяем, чтобы платформа не пересекалась с существующими
@@ -771,7 +787,7 @@ function createEnemies() {
       if (suitablePlatforms.length > 0) {
         const platform =
           suitablePlatforms[
-          Math.floor(Math.random() * suitablePlatforms.length)
+            Math.floor(Math.random() * suitablePlatforms.length)
           ];
 
         enemies.push({
@@ -876,7 +892,7 @@ function init() {
       `Недостаточно монет! Нужно: ${coinsToWin}, есть: ${coinsList.length}. Добавляем...`,
     );
 
-    const x = Math.random() * (levelWidth - 400) + 200;
+    const x = Math.random() * (flag.x - 600) + 200;
     const y = Math.random() * 300 + 700;
 
     let overlaps = false;
@@ -1374,7 +1390,7 @@ function createGroundCoins() {
   const coinCount = 10 + level * 2;
 
   for (let i = 0; i < coinCount; i++) {
-    const x = 300 + Math.random() * (levelWidth - 600);
+    const x = 300 + Math.random() * (flag.x - 900);
 
     groundCoins.push({
       x: x,
@@ -1784,7 +1800,7 @@ startButton.addEventListener("click", () => {
   if (!audioEnabled) {
     enableGameAudio();
   }
-  
+
   startScreen.classList.add("hidden");
   gameState = "playing";
   stopMusic("main_menu_theme");
