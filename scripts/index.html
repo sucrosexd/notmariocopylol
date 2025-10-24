@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="stylesheet" href="./styles/main-style.css">
+    <title>Ninja Platformer</title>
+</head>
+<body>
+    <div class="game-container">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div class="ui-overlay">
+            <div class="ui-panel">Монеты: <span id="coinCount">0</span></div>
+            <div class="ui-panel"><span id="levelGoal">0/20 монет</span></div>
+            <div class="ui-panel">Жизни: <span id="livesCount">3</span></div>
+            <div class="ui-panel">Уровень: <span id="levelCount">1</span></div>
+        </div>
+        
+        <div class="gamepad-status disconnected" id="gamepadStatus">Геймпад не подключен</div>
+        
+        <div id="startScreen" class="screen">
+            <h1 class="title">NINJA RUN</h1>
+            <p class="subtitle">Используйте клавиатуру или геймпад для игры</p>
+            <button id="startButton">Начать игру</button>
+        </div>
+        
+        <div id="gameOverScreen" class="screen hidden">
+            <h1 class="title">Игра окончена!</h1>
+            <p class="subtitle">Ваш результат: <span id="finalScore">0</span> монет</p>
+            <button id="restartButton">Играть снова</button>
+        </div>
+        
+        <div id="levelCompleteScreen" class="screen hidden">
+            <h1 class="title">Уровень пройден!</h1>
+            <p class="subtitle">Вы собрали <span id="levelCoins">0</span> монет</p>
+            <button id="nextLevelButton">Следующий уровень</button>
+        </div>
+        
+        <div id="pauseScreen" class="screen hidden">
+            <h1 class="title">ПАУЗА</h1>
+            <p class="subtitle">Собрано монет: <span id="pauseCoins">0</span>/<span id="pauseGoal">0</span></p>
+            <button id="resumeButton">Продолжить</button>
+            <button id="restartPauseButton">Начать заново</button>
+            <div class="volume-controls">
+                <label>Громкость музыки:</label>
+                    <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="0.6">
+                    <label>Громкость эффектов:</label>
+                    <input type="range" id="sfxVolume" min="0" max="1" step="0.1" value="0.7">
+            </div>
+        </div>
+    </div>
+
+    <script src="./scripts/main-script.js"></script>
+</body>
+</html>
