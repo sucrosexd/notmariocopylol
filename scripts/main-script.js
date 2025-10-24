@@ -19,6 +19,10 @@ const pauseCoinsElement = document.getElementById("pauseCoins");
 const pauseGoalElement = document.getElementById("pauseGoal");
 const gamepadStatusElement = document.getElementById("gamepadStatus");
 
+// Элементы управления громкостью
+const musicVolumeSlider = document.getElementById("musicVolume");
+const sfxVolumeSlider = document.getElementById("sfxVolume");
+
 // Игровые переменные
 let gameState = "menu"; // menu, playing, paused, gameOver, levelComplete
 let coins = 0;
@@ -26,6 +30,10 @@ let lives = 150;
 let level = 1;
 let gamepad = null;
 let isGamepadConnected = false;
+
+// Настройки громкости
+let musicVolume = 0.6;
+let sfxVolume = 0.7;
 
 // Цели уровня
 let coinsToWin = 20; // Количество монет для завершения уровня
@@ -62,6 +70,215 @@ let camera = {
 
 // Загруженные SVG изображения для кота
 const svgImages = {};
+
+// Звуковая система
+let audioContext = null;
+let sounds = {};
+let audioInitialized = false;
+let audioEnabled = false;
+
+// Инициализация аудио контекста
+function initializeAudio() {
+  if (audioInitialized) return;
+
+  try {
+    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+    // создаем тихий звук для разблокировки аудио
+    const buffer = audioContext.createBuffer(1, 1, 22050);
+    const source = audioContext.createBufferSource();
+    source.buffer = buffer;
+    source.connect(audioContext.destination);
+    source.start(0);
+    // Останавливаем сразу
+    source.stop(0.001);
+
+    audioInitialized = true;
+    console.log("AudioContext инициализирован");
+  } catch (error) {
+    console.error("Ошибка инициализации AudioContext:", error);
+  }
+}
+
+// Загрузка звуков
+async function loadSound(name, url) {
+  if (!audioContext) return;
+
+  try {
+    const response = await fetch(url);
+    const arrayBuffer = await response.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    sounds[name] = audioBuffer;
+    console.log(`Звук загружен: ${name}`);
+  } catch (error) {
+    console.error(`Ошибка загрузки звука ${name}:`, error);
+  }
+}
+
+// Воспроизведение звука
+function playSound(name, volume = 1.0, rate = 1.0) {
+  if (!audioContext || !sounds[name]) {
+    console.warn(`Звук не найден или аудио не инициализировано: ${name}`);
+    return null;
+  }
+
+  try {
+    // Возобновляем контекст если приостановлен
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const source = audioContext.createBufferSource();
+    const gainNode = audioContext.createGain();
+
+    source.buffer = sounds[name];
+    source.playbackRate.value = rate;
+    gainNode.gain.value = volume * sfxVolume;
+
+    source.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    source.start(0);
+    return source;
+  } catch (error) {
+    console.error(`Ошибка воспроизведения звука ${name}:`, error);
+    return null;
+  }
+}
+
+// Загрузка всех звуков
+async function loadAllSounds() {
+  if (!audioContext) return;
+
+  const soundFiles = [
+    // Музыка
+    { name: "main_menu_theme", url: "./Assets/Audio/Music/MainTheme/main_menu_theme.mp3" },// пока без темы меню, приколы
+    // { name: "sad_theme", url: "./Assets/Audio/Music/MainTheme/sad_theme.mp3" }, // не используется
+    { name: "level_complete", url: "./Assets/Audio/Music/Levels/level_complete.mp3" },
+    { name: "game_over", url: "./Assets/Audio/Music/Events/game_over.mp3" },
+
+    // SFX игрока
+    { name: "jump", url: "./Assets/Audio/SFX/Player/jump.mp3" },
+    { name: "jump_hit", url: "./Assets/Audio/SFX/Player/jump_hit.mp3" },
+    { name: "land", url: "./Assets/Audio/SFX/Player/land.mp3" },
+    // { name: "move", url: "./Assets/Audio/SFX/Player/move.mp3" }, пока без этого прикола, ужасные звуки
+    { name: "player_damage", url: "./Assets/Audio/SFX/Player/player_damage.mp3" },
+    { name: "player_death", url: "./Assets/Audio/SFX/Player/death.mp3" },
+
+    // SFX врагов
+    { name: "enemy_coin", url: "./Assets/Audio/SFX/Enemies/enemy_coin.mp3" },
+    { name: "enemy_defeat", url: "./Assets/Audio/SFX/Enemies/enemy_defeat.mp3" },
+    { name: "enemy_attack", url: "./Assets/Audio/SFX/Enemies/enemy_hit.mp3" }, // пока не используется
+
+    // SFX окружения
+    { name: "coin_1", url: "./Assets/Audio/SFX/Environment/coin_1.mp3" },
+    { name: "coin_2", url: "./Assets/Audio/SFX/Environment/coin_2.mp3" },
+
+    // SFX UI
+    { name: "ui_click", url: "./Assets/Audio/SFX/UI/click.wav" },
+    { name: "ui_pause", url: "./Assets/Audio/SFX/UI/pause.mp3" }
+  ];
+
+  await Promise.all(soundFiles.map(sound => loadSound(sound.name, sound.url)));
+  console.log("Все звуки загружены");
+}
+
+// Музыкальные треки
+let currentMusic = null;
+let currentMusicGainNode = null;
+
+// Воспроизведение музыки
+function playMusic(name, loop = true, volume = 0.6) {
+  if (!audioContext || !sounds[name]) {
+    console.warn(`Музыка не найдена или аудио не инициализировано: ${name}`);
+    return null;
+  }
+
+  // Останавливаем текущую музыку
+  if (currentMusic) {
+    currentMusic.stop();
+  }
+
+  try {
+    // Возобновляем контекст если приостановлен
+    if (audioContext.state === 'suspended') {
+      audioContext.resume();
+    }
+
+    const source = audioContext.createBufferSource();
+    const gainNode = audioContext.createGain();
+
+    source.buffer = sounds[name];
+    source.loop = loop;
+    gainNode.gain.value = volume * musicVolume;
+
+    source.connect(gainNode);
+    gainNode.connect(audioContext.destination);
+
+    source.start(0);
+    currentMusic = source;
+    currentMusicGainNode = gainNode;
+
+    source.onended = () => {
+      if (currentMusic === source) {
+        currentMusic = null;
+        currentMusicGainNode = null;
+      }
+    };
+
+    return source;
+  } catch (error) {
+    console.error(`Ошибка воспроизведения музыки ${name}:`, error);
+    return null;
+  }
+}
+
+// Остановка музыки
+function stopMusic() {
+  if (currentMusic) {
+    currentMusic.stop();
+    currentMusic = null;
+    currentMusicGainNode = null;
+  }
+}
+
+// Обновление громкости музыки
+function updateMusicVolume() {
+  if (currentMusicGainNode) {
+    currentMusicGainNode.gain.value = musicVolume;
+  }
+}
+
+// Обновление громкости SFX
+function updateSFXVolume() {
+  // Громкость SFX обновляется при каждом воспроизведении звука
+}
+
+// ВКЛЮЧЕНИЕ ИГРОВОГО ЗВУКА
+function enableGameAudio() {
+  if (audioEnabled) return;
+  
+  initializeAudio();
+  loadAllSounds().then(() => {
+    playMusic("main_menu_theme", true, musicVolume);
+    audioEnabled = true;
+    console.log("Игровой звук включен");
+  });
+}
+
+// АВТОМАТИЧЕСКАЯ ПОПЫТКА ВКЛЮЧЕНИЯ ЗВУКА ПРИ ЗАГРУЗКЕ 
+window.addEventListener('DOMContentLoaded', () => {
+  setTimeout(() => {
+    try {
+      enableGameAudio();
+    } catch (error) {
+      console.log("Автоматическое включение звука не удалось, ждем пользователя");
+    }
+  }, 1000);
+});
+
+// ВКЛЮЧЕНИЕ ЗВУКА ПРИ ЛЮБОМ ВЗАИМОДЕЙСТВИИ ПОЛЬЗОВАТЕЛЯ
+document.addEventListener('click', enableGameAudio, { once: true });
+document.addEventListener('keydown', enableGameAudio, { once: true });
 
 // Загрузка SVG
 function loadSVG(id, src) {
@@ -129,6 +346,7 @@ let player = {
   jumping: false,
   grounded: false,
   direction: 1,
+  lastGroundedState: false,
 };
 
 let gravity = 0.8;
@@ -218,14 +436,14 @@ function createRandomPlatform(x, y) {
     width: template.width,
     height: template.height,
     color: template.color,
-    hasCoins: Math.random() > 0.3, // 80% платформ будут с монетами
+    hasCoins: Math.random() > 0.3,
   };
 }
 
 // Создание монет на платформе
 function createCoinsOnPlatform(platform) {
   const coins = [];
-  const coinCount = Math.floor(Math.random() * 3) + 1; // 1-3 монеты
+  const coinCount = Math.floor(Math.random() * 3) + 1;
 
   // Распределяем монеты равномерно по платформе
   const spacing = platform.width / (coinCount + 1);
@@ -233,16 +451,13 @@ function createCoinsOnPlatform(platform) {
   for (let i = 0; i < coinCount; i++) {
     const offsetX = spacing * (i + 1);
 
-    // Определяем тип монеты: обычная (на платформе) или высокая (требует прыжка)
-    const isHighCoin = Math.random() > 0.7; // 30% шанс высокой монеты
+    const isHighCoin = Math.random() > 0.7;
     let heightOffset;
 
     if (isHighCoin) {
-      // Высокая монета - требует прыжка
-      heightOffset = -80 - Math.random() * 40; // -80 до -120 пикселей
+      heightOffset = -80 - Math.random() * 40;
     } else {
-      // Обычная монета - в небольшом радиусе от платформы
-      heightOffset = Math.random() * 30 - 15; // -15 до +15 пикселей
+      heightOffset = Math.random() * 30 - 15;
     }
 
     coins.push({
@@ -250,14 +465,14 @@ function createCoinsOnPlatform(platform) {
       y: platform.y - 50 + heightOffset,
       width: 30,
       height: 30,
-      color: isHighCoin ? "#ff9900" : "#ffcc00", // Разный цвет для высоких монет
+      color: isHighCoin ? "#ff9900" : "#ffcc00",
       collected: false,
       platformId: platforms.length,
       originalY: platform.y - 50 + heightOffset,
       bounceOffset: 0,
-      bounceSpeed: 0.08 + Math.random() * 0.04, // Уменьшена скорость анимации
+      bounceSpeed: 0.08 + Math.random() * 0.04,
       bouncePhase: Math.random() * Math.PI * 2,
-      isHighCoin: isHighCoin, // Флаг высокой монеты
+      isHighCoin: isHighCoin,
     });
   }
 
@@ -275,15 +490,12 @@ function createLevelPath() {
 
   // УВЕЛИЧИВАЕМ количество платформ в основном пути
   while (currentX < levelWidth - 400) {
-    // Уменьшаем отступ от края
-    // Случайный выбор типа платформы
-    const platformType = Math.floor(Math.random() * 3); // 0, 1 или 2 (маленькие, средние, большие)
+    const platformType = Math.floor(Math.random() * 3);
     const templates = platformTemplates[platformType];
     const template = templates[Math.floor(Math.random() * templates.length)];
 
-    // Уменьшаем разброс высот для более плавного пути
-    const heightChange = Math.random() * 120 - 60; // -60 до +60
-    const gapSize = 80 + Math.random() * 60; // 80-140 (уменьшаем промежутки)
+    const heightChange = Math.random() * 120 - 60;
+    const gapSize = 80 + Math.random() * 60;
 
     currentY = Math.max(400, Math.min(1100, currentY + heightChange));
 
@@ -306,7 +518,7 @@ function createLevelPath() {
         width: template.width,
         height: template.height,
         color: template.color,
-        hasCoins: Math.random() > 0.3, // 70% платформ будут с монетами
+        hasCoins: Math.random() > 0.3,
       };
 
       pathPlatforms.push(platform);
@@ -344,10 +556,10 @@ function createLevelPath() {
 
         if (!verticalOverlaps && verticalY >= 400 && verticalY <= 1100) {
           const verticalPlatform = createRandomPlatform(
-            currentX - 80, // Уменьшаем отступ
+            currentX - 80,
             verticalY,
           );
-          verticalPlatform.hasCoins = Math.random() > 0.4; // 60% шанс
+          verticalPlatform.hasCoins = Math.random() > 0.4;
 
           pathPlatforms.push(verticalPlatform);
 
@@ -376,7 +588,7 @@ function createAdditionalPlatforms(mainPlatforms, mainCoins, targetCoins) {
   // Пока не достигнем целевого количества монет
   while (currentCoins < targetCoins) {
     const x = Math.random() * (levelWidth - 400) + 200;
-    const y = Math.random() * 300 + 700; // Ограничиваем высоту для доступности (700-1000)
+    const y = Math.random() * 300 + 700;
 
     // Проверяем, чтобы платформа не пересекалась с существующими
     let overlaps = false;
@@ -389,7 +601,7 @@ function createAdditionalPlatforms(mainPlatforms, mainCoins, targetCoins) {
 
     if (!overlaps) {
       const platform = createRandomPlatform(x, y);
-      platform.hasCoins = true; // Дополнительные платформы всегда с монетами
+      platform.hasCoins = true;
 
       additionalPlatforms.push(platform);
       const platformCoins = createCoinsOnPlatform(platform);
@@ -409,9 +621,9 @@ function findPlatformForEnemy(minWidth = 150) {
   const suitablePlatforms = platforms.filter(
     (p) =>
       p.width >= minWidth &&
-      p.y < levelHeight - 100 && // Не на самой земле
+      p.y < levelHeight - 100 &&
       p.x > 300 &&
-      p.x < levelWidth - 500, // Не слишком близко к краям
+      p.x < levelWidth - 500,
   );
 
   if (suitablePlatforms.length === 0) return null;
@@ -429,12 +641,10 @@ function findPlatformForEnemy(minWidth = 150) {
 function createEnemies() {
   const enemies = [];
 
-  // УВЕЛИЧЕННОЕ количество врагов
-  const groundEnemyCount = 4 + Math.floor(level * 1.2); // Было 2 + level * 0.8
-  const flyingEnemyCount = 2 + Math.floor(level * 0.8); // Было 1 + level * 0.5
-  const platformEnemyCount = 3 + Math.floor(level * 0.6); // Было 2 + level * 0.4
+  const groundEnemyCount = 4 + Math.floor(level * 1.2);
+  const flyingEnemyCount = 2 + Math.floor(level * 0.8);
+  const platformEnemyCount = 3 + Math.floor(level * 0.6);
 
-  // Наземные враги
   for (let i = 0; i < groundEnemyCount; i++) {
     const enemyX = 300 + i * Math.floor((levelWidth - 600) / groundEnemyCount);
     const patrolRange = 120 + Math.random() * 100;
@@ -457,10 +667,10 @@ function createEnemies() {
   for (let i = 0; i < platformEnemyCount; i++) {
     const suitablePlatforms = platforms.filter(
       (p) =>
-        p.width >= 150 && // Уменьшаем минимальную ширину платформы
+        p.width >= 150 &&
         p.y < levelHeight - 100 &&
         p.x > 200 &&
-        p.x < levelWidth - 400, // Расширяем диапазон
+        p.x < levelWidth - 400,
     );
 
     if (suitablePlatforms.length > 0) {
@@ -491,17 +701,14 @@ function createEnemies() {
 
     // РАЗНЫЕ ВЫСОТЫ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
     let flyY;
-    const heightTier = i % 3; // 3 разных уровня высоты
+    const heightTier = i % 3;
 
     if (heightTier === 0) {
-      // Низкий уровень - над землей и нижними платформами
-      flyY = 700 + Math.random() * 150; // 500-650
+      flyY = 700 + Math.random() * 150;
     } else if (heightTier === 1) {
-      // Средний уровень
-      flyY = 550 + Math.random() * 100; // 350-450
+      flyY = 550 + Math.random() * 100;
     } else {
-      // Высокий уровень - под верхом уровня
-      flyY = 400 + Math.random() * 100; // 200-300
+      flyY = 400 + Math.random() * 100;
     }
 
     // Добавляем случайное смещение для разнообразия
@@ -524,14 +731,13 @@ function createEnemies() {
       type: "flying",
       verticalSpeed: 0.4 + Math.random() * 0.3,
       verticalRange: 60 + Math.random() * 50,
-      heightTier: heightTier, // Добавляем информацию о уровне высоты
+      heightTier: heightTier,
     });
   }
 
   // Быстрые враги на высоких уровнях
   if (level >= 3) {
-    // Уменьшаем порог уровня
-    const fastEnemyCount = 1 + Math.floor(level / 2); // Увеличиваем количество
+    const fastEnemyCount = 1 + Math.floor(level / 2);
     for (let i = 0; i < fastEnemyCount; i++) {
       const fastX = 600 + i * 500;
 
@@ -552,8 +758,7 @@ function createEnemies() {
 
   // Прыгающие враги на платформах
   if (level >= 2) {
-    // Уменьшаем порог уровня
-    const jumpingEnemyCount = 1 + Math.floor(level / 2); // Увеличиваем количество
+    const jumpingEnemyCount = 1 + Math.floor(level / 2);
     for (let i = 0; i < jumpingEnemyCount; i++) {
       const suitablePlatforms = platforms.filter(
         (p) =>
@@ -566,7 +771,7 @@ function createEnemies() {
       if (suitablePlatforms.length > 0) {
         const platform =
           suitablePlatforms[
-            Math.floor(Math.random() * suitablePlatforms.length)
+          Math.floor(Math.random() * suitablePlatforms.length)
           ];
 
         enemies.push({
@@ -591,8 +796,7 @@ function createEnemies() {
 
   // Дополнительные враги в конце уровня
   if (level >= 1) {
-    // Добавляем с первого уровня
-    const endGameEnemies = 2 + Math.floor(level / 1.5); // Увеличиваем количество
+    const endGameEnemies = 2 + Math.floor(level / 1.5);
     for (let i = 0; i < endGameEnemies; i++) {
       const endX = levelWidth - 500 - i * 150;
 
@@ -654,7 +858,7 @@ function init() {
   // Если монет недостаточно, добавляем дополнительные платформы
   if (mainPath.totalCoins + groundCoins.length < coinsToWin) {
     const neededCoins =
-      coinsToWin - (mainPath.totalCoins + groundCoins.length) + 5; // +5 вместо +10
+      coinsToWin - (mainPath.totalCoins + groundCoins.length) + 5;
     const additional = createAdditionalPlatforms(
       mainPath.platforms,
       [...mainPath.coins, ...groundCoins],
@@ -690,7 +894,7 @@ function init() {
       platforms.push(platform);
       const platformCoins = createCoinsOnPlatform(platform);
       if (platformCoins.length > 1) {
-        platformCoins.splice(1); // Максимум 1 монета на дополнительной платформе
+        platformCoins.splice(1);
       }
       coinsList.push(...platformCoins);
     }
@@ -716,6 +920,8 @@ function init() {
   player.velX = 0;
   player.velY = 0;
   player.jumping = false;
+  player.grounded = false;
+  player.lastGroundedState = false;
   player.direction = 1;
 
   // Сброс системы урона
@@ -746,6 +952,10 @@ function init() {
   isFacingRight = true;
   animationTime = 0;
   pauseKeyPressed = false;
+
+  // if (gameState === "playing" && audioInitialized) {
+  //   playMusic("main_menu_theme", true, musicVolume);
+  // }
 }
 
 // Обновление отображения цели уровня
@@ -861,7 +1071,7 @@ function updateCoinAnimations() {
     if (!coin.collected) {
       // Обновляем анимацию подпрыгивания с уменьшенной амплитудой
       coin.bouncePhase += coin.bounceSpeed;
-      coin.bounceOffset = Math.sin(coin.bouncePhase) * 5; // Уменьшена амплитуда до 5 пикселей
+      coin.bounceOffset = Math.sin(coin.bouncePhase) * 5;
     }
   }
 }
@@ -900,6 +1110,7 @@ function updatePlatformEnemies() {
             enemy.velY = -12;
             enemy.grounded = false;
             enemy.jumpCooldown = 60 + Math.random() * 60;
+            playSound("jump", 0.4);
           }
 
           // Применение гравитации
@@ -912,6 +1123,7 @@ function updatePlatformEnemies() {
               enemy.y = platform.y - enemy.height;
               enemy.velY = 0;
               enemy.grounded = true;
+              playSound("land", 0.3);
             }
           }
         } else {
@@ -1159,19 +1371,19 @@ function draw() {
 
 function createGroundCoins() {
   const groundCoins = [];
-  const coinCount = 10 + level * 2; // 10-20 монет на земле в зависимости от уровня
+  const coinCount = 10 + level * 2;
 
   for (let i = 0; i < coinCount; i++) {
     const x = 300 + Math.random() * (levelWidth - 600);
 
     groundCoins.push({
       x: x,
-      y: levelHeight - 60, // Над землей
+      y: levelHeight - 60,
       width: 30,
       height: 30,
       color: "#ffcc00",
       collected: false,
-      platformId: -1, // -1 означает, что монета на земле
+      platformId: -1,
       originalY: levelHeight - 60,
       bounceOffset: 0,
       bounceSpeed: 0.08 + Math.random() * 0.04,
@@ -1185,20 +1397,26 @@ function createGroundCoins() {
 
 // Обработка получения урона
 function takeDamage() {
-  if (isInvulnerable) return; // Не получаем урон во время неуязвимости
+  if (isInvulnerable) return;
 
   lives--;
   livesCountElement.textContent = lives;
 
-  // Активируем неуязвимость
+  playSound("player_damage", 0.7);
+
   isInvulnerable = true;
   invulnerabilityTimer = INVULNERABILITY_DURATION;
-  damageFlashTimer = 10; // Начинаем мигание
+  damageFlashTimer = 10;
 
   if (lives <= 0) {
     gameState = "gameOver";
     gameOverScreen.classList.remove("hidden");
     finalScoreElement.textContent = coins;
+
+    stopMusic();
+    playMusic("game_over", false, 0.8);
+
+    playSound("player_death", 0.8);
   }
 }
 
@@ -1225,9 +1443,17 @@ function handleKeyboardInput() {
   if (keys["ArrowLeft"] || keys["KeyA"]) {
     player.velX = -player.speed;
     player.direction = -1;
+
+    if (player.grounded && Math.random() > 0.7) {
+      playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+    }
   } else if (keys["ArrowRight"] || keys["KeyD"]) {
     player.velX = player.speed;
     player.direction = 1;
+
+    if (player.grounded && Math.random() > 0.7) {
+      playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+    }
   }
 
   // Прыжок
@@ -1235,6 +1461,7 @@ function handleKeyboardInput() {
     player.velY = -18;
     player.jumping = true;
     player.grounded = false;
+    playSound("jump", 0.6);
   }
 
   // Способность спускаться по платформам (стрелка вниз или S)
@@ -1251,6 +1478,7 @@ function handleKeyboardInput() {
     player.velY = -18;
     player.jumping = true;
     player.grounded = false;
+    playSound("jump", 0.6);
   }
 
   // Способность спускаться по платформам
@@ -1282,10 +1510,18 @@ function update() {
       pauseCoinsElement.textContent = coinsCollectedInLevel;
       pauseGoalElement.textContent = coinsToWin;
       console.log("Игра на паузе");
+
+      playSound("ui_pause", 0.5);
+
+      updateMusicVolume();
     } else if (gameState === "paused") {
       gameState = "playing";
       pauseScreen.classList.add("hidden");
       console.log("Игра продолжена");
+
+      playSound("ui_click", 0.4);
+
+      updateMusicVolume();
     }
     pauseKeyPressed = true;
   }
@@ -1342,6 +1578,10 @@ function update() {
     if (Math.abs(leftStickX) > 0.1) {
       player.velX = leftStickX * player.speed;
       player.direction = leftStickX > 0 ? 1 : -1;
+
+      if (player.grounded && Math.random() > 0.7) {
+        playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+      }
     }
 
     // Проверяем кнопку для спуска (обычно кнопка вниз на крестовине или левый стик вниз)
@@ -1352,6 +1592,7 @@ function update() {
       player.velY = -18;
       player.jumping = true;
       player.grounded = false;
+      playSound("jump", 0.6);
     }
 
     // Атака с геймпада (кнопка X)
@@ -1365,14 +1606,18 @@ function update() {
   player.x += player.velX;
   player.y += player.velY;
 
-  // Ограничение игрока в пределах уровня
+  if (!player.lastGroundedState && player.grounded) {
+    playSound("land", 0.4);
+  }
+  player.lastGroundedState = player.grounded;
+
   if (player.x < 0) player.x = 0;
   if (player.x + player.width > levelWidth)
     player.x = levelWidth - player.width;
   if (player.y > levelHeight) {
     player.y = 800;
     player.x = 100;
-    takeDamage(); // Используем новую систему урона
+    takeDamage();
   }
 
   // Сброс grounded статуса
@@ -1422,6 +1667,12 @@ function update() {
       coinsCollectedInLevel++;
       coinCountElement.textContent = coins;
       updateLevelGoalDisplay();
+
+      if (coin.isHighCoin) {
+        playSound("coin_2", 0.6);
+      } else {
+        playSound("coin_1", 0.5);
+      }
     }
   }
 
@@ -1438,8 +1689,7 @@ function update() {
         player.velY > 0 &&
         player.y + player.height < enemy.y + enemy.height / 2
       ) {
-        // Игрок прыгает на врага - враг умирает
-        enemies.splice(i, 1); // Удаляем врага из массива
+        enemies.splice(i, 1);
         player.velY = -12;
 
         // Добавляем монеты за убийство врага
@@ -1448,11 +1698,14 @@ function update() {
         coinCountElement.textContent = coins;
         updateLevelGoalDisplay();
 
-        // Визуальный эффект получения монет
+        playSound("jump_hit", 0.7);
+        playSound("enemy_death", 0.6);
+        playSound("enemy_defeat", 0.5);
+        playSound("enemy_coin", 0.5);
+
         console.log(`+2 монеты за убийство врага!`);
       } else if (!isInvulnerable) {
-        // проверка неуязвимости
-        // Игрок получает урон (используем новую систему)
+        playSound("enemy_attack", 0.6);
         takeDamage();
       }
     }
@@ -1469,6 +1722,9 @@ function update() {
     gameState = "levelComplete";
     levelCompleteScreen.classList.remove("hidden");
     levelCoinsElement.textContent = coinsCollectedInLevel;
+
+    stopMusic();
+    playMusic("level_complete", false, 0.8);
   }
 }
 
@@ -1507,29 +1763,57 @@ function handleGamepad() {
   gamepadStatusElement.className = "gamepad-status disconnected";
 }
 
+// Обработчики изменения громкости
+if (musicVolumeSlider) {
+  musicVolumeSlider.addEventListener("input", (e) => {
+    musicVolume = parseFloat(e.target.value);
+    updateMusicVolume();
+  });
+}
+
+if (sfxVolumeSlider) {
+  sfxVolumeSlider.addEventListener("input", (e) => {
+    sfxVolume = parseFloat(e.target.value);
+    updateSFXVolume();
+  });
+}
+
 // Начало игры
 startButton.addEventListener("click", () => {
+  //гарантируем, что аудио включено
+  if (!audioEnabled) {
+    enableGameAudio();
+  }
+  
   startScreen.classList.add("hidden");
   gameState = "playing";
+  stopMusic("main_menu_theme");
+  playSound("ui_click", 0.5);
   init();
 });
 
 // Перезапуск игры
 restartButton.addEventListener("click", () => {
   gameOverScreen.classList.add("hidden");
+  playSound("ui_click", 0.5);
   lives = 150;
   coins = 0;
   level = 1;
   gameState = "playing";
+  // stopMusic();
+  // playMusic("main_menu_theme", true, musicVolume);
   init();
 });
 
 // Следующий уровень
 nextLevelButton.addEventListener("click", () => {
   levelCompleteScreen.classList.add("hidden");
+  playSound("ui_click", 0.5);
   level++;
   levelCountElement.textContent = level;
   gameState = "playing";
+  // stopMusic();
+  // playMusic("main_menu_theme", true, musicVolume);
   init();
 
   // Увеличиваем сложность
@@ -1539,16 +1823,22 @@ nextLevelButton.addEventListener("click", () => {
 // Продолжение игры из паузы
 resumeButton.addEventListener("click", () => {
   pauseScreen.classList.add("hidden");
+  playSound("ui_click", 0.4);
   gameState = "playing";
+
+  updateMusicVolume();
 });
 
 // Рестарт из паузы
 restartPauseButton.addEventListener("click", () => {
   pauseScreen.classList.add("hidden");
+  playSound("ui_click", 0.5);
   lives = 150;
   coins = 0;
   level = 1;
   gameState = "playing";
+  // stopMusic();
+  // playMusic("main_menu_theme", true, musicVolume);
   init();
 });
 
@@ -1583,11 +1873,13 @@ setInterval(handleGamepad, 100);
 loadAllSVGs()
   .then(() => {
     console.log("Игра запускается...");
+
+    // Не инициализируем аудио автоматически, ждем действий пользователя
     gameLoop();
     init();
   })
   .catch((error) => {
-    console.log("Запуск с заглушками из-за ошибки загрузки SVG");
+    console.log("Запуск с заглушками из-за ошибки загрузки:", error);
     gameLoop();
     init();
   });
