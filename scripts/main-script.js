@@ -343,6 +343,9 @@ async function loadAllSVGs() {
         "./assets/images/characters/character/right_shin.svg",
       ),
       loadSVG("background", "./assets/images/backgrounds/fon/fon.svg"),
+      loadSVG("coin", "./assets/images/elements/coin.svg"),
+      loadSVG("flag", "./assets/images/elements/flag.svg"),
+      loadSVG("flagDisabled", "./assets/images/elements/flag-disabled.svg"),
     ]);
     console.log("Все SVG изображения кота загружены успешно");
   } catch (error) {
@@ -657,124 +660,37 @@ function findPlatformForEnemy(minWidth = 150) {
 function createEnemies() {
   const enemies = [];
 
-  const groundEnemyCount = 4 + Math.floor(level * 1.2);
-  const flyingEnemyCount = 2 + Math.floor(level * 0.8);
-  const platformEnemyCount = 3 + Math.floor(level * 0.6);
-
-  for (let i = 0; i < groundEnemyCount; i++) {
-    const enemyX = 300 + i * Math.floor((levelWidth - 600) / groundEnemyCount);
-    const patrolRange = 120 + Math.random() * 100;
-
-    enemies.push({
-      x: enemyX,
-      y: levelHeight - 70,
-      width: 60,
-      height: 60,
-      speed: 2 + level * 0.3,
-      direction: i % 2 === 0 ? 1 : -1,
-      patrolRange: patrolRange,
-      startX: enemyX,
-      color: "#8E44AD",
-      type: "ground",
-    });
+  // Уровни без врагов (для будущих боссов)
+  if ([4, 7, 10].includes(level)) {
+    return enemies; // Возвращаем пустой массив врагов
   }
 
-  // Враги на платформах
-  for (let i = 0; i < platformEnemyCount; i++) {
-    const suitablePlatforms = platforms.filter(
-      (p) =>
-        p.width >= 150 &&
-        p.y < levelHeight - 100 &&
-        p.x > 200 &&
-        p.x < levelWidth - 400,
-    );
-
-    if (suitablePlatforms.length > 0) {
-      const platform =
-        suitablePlatforms[Math.floor(Math.random() * suitablePlatforms.length)];
+  // Обычные враги (уровни 1, 2, 3, 5, 9)
+  if ([1, 2, 3, 5, 9].includes(level)) {
+    const groundEnemyCount = level <= 3 ? 4 + Math.floor(level * 1.2) : 2;
+    for (let i = 0; i < groundEnemyCount; i++) {
+      const enemyX =
+        300 + i * Math.floor((levelWidth - 600) / groundEnemyCount);
+      const patrolRange = 120 + Math.random() * 100;
 
       enemies.push({
-        x: platform.x + 20,
-        y: platform.y - 60,
-        width: 50,
-        height: 50,
-        speed: 1.5 + level * 0.2,
-        direction: Math.random() > 0.5 ? 1 : -1,
-        patrolRange: platform.width - 60,
-        startX: platform.x + platform.width / 2,
-        color: "#E74C3C",
-        type: "platform",
-        platformId: platforms.indexOf(platform),
-        grounded: true,
-        jumpCooldown: 0,
-      });
-    }
-  }
-
-  // Летающие враги
-  for (let i = 0; i < flyingEnemyCount; i++) {
-    const flyX = 400 + i * Math.floor((levelWidth - 800) / flyingEnemyCount);
-
-    // РАЗНЫЕ ВЫСОТЫ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
-    let flyY;
-    const heightTier = i % 3;
-
-    if (heightTier === 0) {
-      flyY = 700 + Math.random() * 150;
-    } else if (heightTier === 1) {
-      flyY = 550 + Math.random() * 100;
-    } else {
-      flyY = 400 + Math.random() * 100;
-    }
-
-    // Добавляем случайное смещение для разнообразия
-    flyY += Math.random() * 50 - 25;
-
-    // Гарантируем, что враги не вылетают за пределы уровня
-    flyY = Math.max(150, Math.min(700, flyY));
-
-    enemies.push({
-      x: flyX,
-      y: flyY,
-      width: 50,
-      height: 50,
-      speed: 1.8 + level * 0.2,
-      direction: 1,
-      patrolRange: 200,
-      startX: flyX,
-      isFlying: true,
-      color: "#9B59B6",
-      type: "flying",
-      verticalSpeed: 0.4 + Math.random() * 0.3,
-      verticalRange: 60 + Math.random() * 50,
-      heightTier: heightTier,
-    });
-  }
-
-  // Быстрые враги на высоких уровнях
-  if (level >= 3) {
-    const fastEnemyCount = 1 + Math.floor(level / 2);
-    for (let i = 0; i < fastEnemyCount; i++) {
-      const fastX = 600 + i * 500;
-
-      enemies.push({
-        x: fastX,
+        x: enemyX,
         y: levelHeight - 70,
-        width: 45,
-        height: 45,
-        speed: 3.5 + level * 0.4,
-        direction: 1,
-        patrolRange: 150,
-        startX: fastX,
-        color: "#C0392B",
-        type: "fast",
+        width: 60,
+        height: 60,
+        speed: 2 + level * 0.3,
+        direction: i % 2 === 0 ? 1 : -1,
+        patrolRange: patrolRange,
+        startX: enemyX,
+        color: "#8E44AD",
+        type: "ground",
       });
     }
   }
 
-  // Прыгающие враги на платформах
-  if (level >= 2) {
-    const jumpingEnemyCount = 1 + Math.floor(level / 2);
+  // Прыгуны (уровни 2, 3, 6, 9)
+  if ([2, 3, 6, 9].includes(level)) {
+    const jumpingEnemyCount = level <= 3 ? 2 : 3;
     for (let i = 0; i < jumpingEnemyCount; i++) {
       const suitablePlatforms = platforms.filter(
         (p) =>
@@ -810,24 +726,185 @@ function createEnemies() {
     }
   }
 
-  // Дополнительные враги в конце уровня
-  if (level >= 1) {
-    const endGameEnemies = 2 + Math.floor(level / 1.5);
-    for (let i = 0; i < endGameEnemies; i++) {
-      const endX = levelWidth - 500 - i * 150;
+  // Быстрые враги (уровни 3, 6, 8, 9)
+  if ([3, 6, 8, 9].includes(level)) {
+    const fastEnemyCount = level <= 6 ? 1 : 2;
+    for (let i = 0; i < fastEnemyCount; i++) {
+      const fastX = 600 + i * 500;
 
       enemies.push({
-        x: endX,
+        x: fastX,
         y: levelHeight - 70,
-        width: 55,
-        height: 55,
-        speed: 2.5 + level * 0.3,
-        direction: -1,
-        patrolRange: 100,
-        startX: endX,
-        color: "#16A085",
-        type: "ground",
+        width: 45,
+        height: 45,
+        speed: 3.5 + level * 0.4,
+        direction: 1,
+        patrolRange: 150,
+        startX: fastX,
+        color: "#C0392B",
+        type: "fast",
       });
+    }
+  }
+
+  // Летающие враги (уровни 5, 6, 8, 9)
+  if ([5, 6, 8, 9].includes(level)) {
+    const flyingEnemyCount = level <= 6 ? 2 : 3;
+    for (let i = 0; i < flyingEnemyCount; i++) {
+      const flyX = 400 + i * Math.floor((levelWidth - 800) / flyingEnemyCount);
+
+      let flyY;
+      const heightTier = i % 3;
+
+      if (heightTier === 0) {
+        flyY = 700 + Math.random() * 150;
+      } else if (heightTier === 1) {
+        flyY = 550 + Math.random() * 100;
+      } else {
+        flyY = 400 + Math.random() * 100;
+      }
+
+      flyY += Math.random() * 50 - 25;
+      flyY = Math.max(150, Math.min(700, flyY));
+
+      enemies.push({
+        x: flyX,
+        y: flyY,
+        width: 50,
+        height: 50,
+        speed: 1.8 + level * 0.2,
+        direction: 1,
+        patrolRange: 200,
+        startX: flyX,
+        isFlying: true,
+        color: "#9B59B6",
+        type: "flying",
+        verticalSpeed: 0.4 + Math.random() * 0.3,
+        verticalRange: 60 + Math.random() * 50,
+        heightTier: heightTier,
+      });
+    }
+  }
+
+  // Бронированные враги на платформах (уровни 8, 9)
+  if ([8, 9].includes(level)) {
+    const armoredEnemyCount = level === 8 ? 3 : 5;
+    for (let i = 0; i < armoredEnemyCount; i++) {
+      const suitablePlatforms = platforms.filter(
+        (p) =>
+          p.width >= 200 && // Нужны широкие платформы для бронированных
+          p.y < levelHeight - 150 &&
+          p.x > 300 &&
+          p.x < levelWidth - 500,
+      );
+
+      if (suitablePlatforms.length > 0) {
+        const platform =
+          suitablePlatforms[
+            Math.floor(Math.random() * suitablePlatforms.length)
+          ];
+
+        enemies.push({
+          x: platform.x + 30,
+          y: platform.y - 70,
+          width: 70,
+          height: 70,
+          speed: 1.2 + level * 0.15,
+          direction: Math.random() > 0.5 ? 1 : -1,
+          patrolRange: platform.width - 100,
+          startX: platform.x + platform.width / 2,
+          color: "#34495E",
+          type: "armored",
+          isArmored: true,
+          platformId: platforms.indexOf(platform),
+          grounded: true,
+        });
+      }
+    }
+  }
+
+  // Обычные враги на платформах (для всех уровней, кроме 6, 8 и 9)
+  // На 6 уровне заменяем обычных врагов на быстрых на платформах
+  // На 8 уровне быстрые враги также могут появляться на платформах
+  if (![8, 9].includes(level)) {
+    const platformEnemyCount = 3 + Math.floor(level * 0.6);
+    for (let i = 0; i < platformEnemyCount; i++) {
+      const suitablePlatforms = platforms.filter(
+        (p) =>
+          p.width >= 150 &&
+          p.y < levelHeight - 100 &&
+          p.x > 200 &&
+          p.x < levelWidth - 400,
+      );
+
+      if (suitablePlatforms.length > 0) {
+        const platform =
+          suitablePlatforms[
+            Math.floor(Math.random() * suitablePlatforms.length)
+          ];
+
+        // На 6 уровне заменяем обычных врагов на быстрых на платформах
+        const enemyType = level === 6 ? "fastPlatform" : "platform";
+        const enemySpeed = level === 6 ? 3.5 + level * 0.4 : 1.5 + level * 0.2;
+
+        enemies.push({
+          x: platform.x + 20,
+          y: platform.y - 60,
+          width: level === 6 ? 45 : 50,
+          height: level === 6 ? 45 : 50,
+          speed: enemySpeed,
+          direction: Math.random() > 0.5 ? 1 : -1,
+          patrolRange: platform.width - 60,
+          startX: platform.x + platform.width / 2,
+          color: level === 6 ? "#C0392B" : "#E74C3C",
+          type: enemyType,
+          platformId: platforms.indexOf(platform),
+          grounded: true,
+          jumpCooldown: 0,
+          isStuck: false,
+          stuckTimer: 0,
+          originalSpeed: enemySpeed,
+        });
+      }
+    }
+  }
+
+  // На 8 уровне добавляем быстрых врагов на платформах
+  if (level === 8) {
+    const fastPlatformEnemyCount = 2;
+    for (let i = 0; i < fastPlatformEnemyCount; i++) {
+      const suitablePlatforms = platforms.filter(
+        (p) =>
+          p.width >= 180 &&
+          p.y < levelHeight - 100 &&
+          p.x > 300 &&
+          p.x < levelWidth - 500,
+      );
+
+      if (suitablePlatforms.length > 0) {
+        const platform =
+          suitablePlatforms[
+            Math.floor(Math.random() * suitablePlatforms.length)
+          ];
+
+        enemies.push({
+          x: platform.x + 20,
+          y: platform.y - 60,
+          width: 45,
+          height: 45,
+          speed: 3.5 + level * 0.4,
+          direction: Math.random() > 0.5 ? 1 : -1,
+          patrolRange: platform.width - 80,
+          startX: platform.x + platform.width / 2,
+          color: "#C0392B",
+          type: "fastPlatform",
+          platformId: platforms.indexOf(platform),
+          grounded: true,
+          isStuck: false,
+          stuckTimer: 0,
+          originalSpeed: 3.5 + level * 0.4,
+        });
+      }
     }
   }
 
@@ -841,7 +918,7 @@ function init() {
   // Установка размера canvas
   resizeCanvas();
 
-  // Сброс счетчиков уровня
+  // Сброс счетчиков уровня (НЕ сбрасываем общие монеты)
   coinsCollectedInLevel = 0;
   coinsToWin = 15 + level * 7;
 
@@ -945,7 +1022,7 @@ function init() {
   invulnerabilityTimer = 0;
   damageFlashTimer = 0;
 
-  // Инициализация камеры - фиксированная вертикальная позиция
+  // Инициализация камеры
   camera.x = 0;
   camera.y = levelHeight - camera.height;
 
@@ -954,8 +1031,8 @@ function init() {
   if (camera.y + camera.height > levelHeight)
     camera.y = levelHeight - camera.height;
 
-  coins = 0;
-  coinCountElement.textContent = coins;
+  // УБРАН СБРОС ОБЩИХ МОНЕТ: coins = 0;
+  coinCountElement.textContent = coins; // Отображаем накопленные монеты
   livesCountElement.textContent = lives;
   levelCountElement.textContent = level;
 
@@ -968,12 +1045,10 @@ function init() {
   isFacingRight = true;
   animationTime = 0;
   pauseKeyPressed = false;
-
   // if (gameState === "playing" && audioInitialized) {
   //   playMusic("main_menu_theme", true, musicVolume);
   // }
 }
-
 // Обновление отображения цели уровня
 function updateLevelGoalDisplay() {
   const levelGoalElement = document.getElementById("levelGoal");
@@ -1037,7 +1112,7 @@ function drawCat() {
 
   // Эффект мигания при получении урона
   if (damageFlashTimer > 0) {
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.1;
   }
 
   ctx.translate(x, y);
@@ -1095,7 +1170,13 @@ function updateCoinAnimations() {
 // Обновление врагов на платформах
 function updatePlatformEnemies() {
   for (let enemy of enemies) {
-    if (enemy.type === "platform" || enemy.type === "jumping") {
+    // Обрабатываем всех врагов на платформах (обычных, прыгунов, бронированных и быстрых на платформах)
+    if (
+      enemy.type === "platform" ||
+      enemy.type === "jumping" ||
+      enemy.type === "armored" ||
+      enemy.type === "fastPlatform"
+    ) {
       const platform = platforms[enemy.platformId];
 
       if (!platform) continue;
@@ -1106,18 +1187,53 @@ function updatePlatformEnemies() {
 
       // Обновляем только видимых врагов для оптимизации
       if (isVisible) {
-        // Горизонтальное движение
-        enemy.x += enemy.speed * enemy.direction;
+        // Логика застревания быстрых врагов на 6 уровне
+        if (enemy.type === "fastPlatform" && level === 6) {
+          // Случайный шанс застрять (1% каждый кадр)
+          if (!enemy.isStuck && Math.random() < 0.01) {
+            enemy.isStuck = true;
+            enemy.stuckTimer = 60 + Math.random() * 120; // Застревание на 1-3 секунды
+            enemy.originalSpeed = enemy.speed;
+            enemy.speed = 0; // Останавливаем врага
+          }
+
+          // Если враг застрял, уменьшаем таймер
+          if (enemy.isStuck) {
+            enemy.stuckTimer--;
+
+            // Визуальный эффект застревания (мигание)
+            if (enemy.stuckTimer % 20 < 10) {
+              enemy.color = "#FF0000"; // Красный при застревании
+            } else {
+              enemy.color = "#C0392B"; // Обычный цвет
+            }
+
+            // Когда таймер истекает, освобождаем врага
+            if (enemy.stuckTimer <= 0) {
+              enemy.isStuck = false;
+              enemy.speed = enemy.originalSpeed;
+              enemy.color = "#C0392B";
+            }
+          }
+        }
+
+        // Горизонтальное движение (бронированные медленнее)
+        const speedMultiplier = enemy.type === "armored" ? 0.7 : 1.0;
+        // Только если враг не застрял
+        if (!enemy.isStuck) {
+          enemy.x += enemy.speed * enemy.direction * speedMultiplier;
+        }
 
         // Проверка границ платформы
         if (
-          enemy.x <= platform.x + 10 ||
-          enemy.x + enemy.width >= platform.x + platform.width - 10
+          enemy.x <= platform.x + (enemy.type === "armored" ? 20 : 10) ||
+          enemy.x + enemy.width >=
+            platform.x + platform.width - (enemy.type === "armored" ? 20 : 10)
         ) {
           enemy.direction *= -1;
         }
 
-        // Для прыгающих врагов
+        // Для прыгающих врагов (только небронированных)
         if (enemy.type === "jumping") {
           enemy.jumpCooldown--;
 
@@ -1143,7 +1259,7 @@ function updatePlatformEnemies() {
             }
           }
         } else {
-          // Обычные враги на платформах всегда на платформе
+          // Обычные, быстрые и бронированные враги на платформах всегда на платформе
           enemy.y = platform.y - enemy.height;
         }
       }
@@ -1153,12 +1269,17 @@ function updatePlatformEnemies() {
 
 // Обновление врагов
 function updateEnemies() {
-  // Обновляем врагов на платформах
+  // Обновляем врагов на платформах (включая бронированных)
   updatePlatformEnemies();
 
   for (let enemy of enemies) {
     // Пропускаем врагов на платформах, так как они уже обработаны
-    if (enemy.type === "platform" || enemy.type === "jumping") continue;
+    if (
+      enemy.type === "platform" ||
+      enemy.type === "jumping" ||
+      enemy.type === "armored"
+    )
+      continue;
 
     // Горизонтальное движение для остальных врагов
     enemy.x += enemy.speed * enemy.direction;
@@ -1248,45 +1369,90 @@ function draw() {
       // Используем анимацию подпрыгивания с уменьшенной амплитудой
       const currentY = coin.originalY + coin.bounceOffset;
 
-      ctx.save();
-      ctx.translate(coin.x + coin.width / 2, currentY + coin.height / 2);
-
-      // Разный цвет для высоких монет
-      ctx.fillStyle = coin.color;
-      ctx.beginPath();
-      ctx.arc(0, 0, coin.width / 2, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Блики на монете
-      ctx.fillStyle = "rgba(255, 255, 255, 0.8)";
-      ctx.beginPath();
-      ctx.arc(-4, -4, coin.width / 6, 0, Math.PI * 2);
-      ctx.fill();
-
-      ctx.beginPath();
-      ctx.arc(2, 2, coin.width / 8, 0, Math.PI * 2);
-      ctx.fill();
-
-      // Индикатор для высоких монет
-      if (coin.isHighCoin) {
-        ctx.fillStyle = "rgba(255, 255, 255, 0.3)";
+      // Используем текстуру монеты вместо рисования круга
+      if (svgImages.coin) {
+        ctx.drawImage(
+          svgImages.coin,
+          coin.x,
+          currentY,
+          coin.width,
+          coin.height,
+        );
+      } else {
+        // Запасной вариант если текстура не загружена
+        ctx.fillStyle = coin.color;
         ctx.beginPath();
-        ctx.arc(0, -20, 3, 0, Math.PI * 2);
+        ctx.arc(
+          coin.x + coin.width / 2,
+          currentY + coin.height / 2,
+          coin.width / 2,
+          0,
+          Math.PI * 2,
+        );
         ctx.fill();
       }
-
-      ctx.restore();
     }
   }
 
   // Рисование только видимых врагов
   for (let enemy of enemies) {
     if (enemy.x < camera.x + camera.width && enemy.x + enemy.width > camera.x) {
-      // Разные цвета для разных типов врагов
-      ctx.fillStyle = enemy.color;
+      // Разные стили для разных типов врагов
 
-      // Для летающих врагов рисуем крылья
-      if (enemy.isFlying) {
+      // БРОНИРОВАННЫЕ ВРАГИ
+      if (enemy.type === "armored") {
+        // Основной цвет брони
+        ctx.fillStyle = enemy.color;
+        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+
+        // Внутренняя броня (темнее основного цвета)
+        ctx.fillStyle = "#2C3E50";
+        ctx.fillRect(
+          enemy.x + 8,
+          enemy.y + 8,
+          enemy.width - 16,
+          enemy.height - 16,
+        );
+
+        // Детали брони
+        ctx.fillStyle = "#7F8C8D";
+        // Бронепластины
+        ctx.fillRect(enemy.x + 12, enemy.y + 12, enemy.width - 24, 6);
+        ctx.fillRect(
+          enemy.x + 12,
+          enemy.y + enemy.height - 18,
+          enemy.width - 24,
+          6,
+        );
+        ctx.fillRect(enemy.x + 12, enemy.y + 25, 6, enemy.height - 50);
+        ctx.fillRect(
+          enemy.x + enemy.width - 18,
+          enemy.y + 25,
+          6,
+          enemy.height - 50,
+        );
+
+        // Глаза
+        ctx.fillStyle = "white";
+        ctx.fillRect(enemy.x + 20, enemy.y + 25, 10, 10);
+        ctx.fillRect(enemy.x + enemy.width - 30, enemy.y + 25, 10, 10);
+
+        ctx.fillStyle = "red";
+        ctx.fillRect(enemy.x + 23, enemy.y + 28, 4, 4);
+        ctx.fillRect(enemy.x + enemy.width - 27, enemy.y + 28, 4, 4);
+
+        // Индикатор брони (щит)
+        ctx.fillStyle = "#E74C3C";
+        ctx.beginPath();
+        ctx.moveTo(enemy.x + enemy.width / 2, enemy.y - 5);
+        ctx.lineTo(enemy.x + enemy.width / 2 - 10, enemy.y + 5);
+        ctx.lineTo(enemy.x + enemy.width / 2 + 10, enemy.y + 5);
+        ctx.closePath();
+        ctx.fill();
+      }
+      // ЛЕТАЮЩИЕ ВРАГИ
+      else if (enemy.isFlying) {
+        ctx.fillStyle = enemy.color;
         ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
 
         // Крылья с анимацией
@@ -1295,8 +1461,9 @@ function draw() {
         ctx.fillRect(enemy.x - 12, wingY, 12, 6);
         ctx.fillRect(enemy.x + enemy.width, wingY, 12, 6);
       }
-      // Для врагов на платформах
+      // ВРАГИ НА ПЛАТФОРМАХ
       else if (enemy.type === "platform" || enemy.type === "jumping") {
+        ctx.fillStyle = enemy.color;
         ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
 
         // Специальные индикаторы для прыгающих врагов
@@ -1308,19 +1475,22 @@ function draw() {
           }
         }
       }
-      // Для наземных врагов
+      // НАЗЕМНЫЕ ВРАГИ
       else {
+        ctx.fillStyle = enemy.color;
         ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
       }
 
-      // Глаза для всех врагов
-      ctx.fillStyle = "white";
-      ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
-      ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
+      // Глаза для всех врагов (кроме бронированных, у которых глаза уже нарисованы)
+      if (enemy.type !== "armored") {
+        ctx.fillStyle = "white";
+        ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
+        ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
 
-      ctx.fillStyle = enemy.type === "fast" ? "red" : "black";
-      ctx.fillRect(enemy.x + 11, enemy.y + 18, 6, 6);
-      ctx.fillRect(enemy.x + enemy.width - 17, enemy.y + 18, 6, 6);
+        ctx.fillStyle = enemy.type === "fast" ? "red" : "black";
+        ctx.fillRect(enemy.x + 11, enemy.y + 18, 6, 6);
+        ctx.fillRect(enemy.x + enemy.width - 17, enemy.y + 18, 6, 6);
+      }
 
       // Индикатор для быстрых врагов
       if (enemy.type === "fast" && enemy.speed > 5) {
@@ -1333,19 +1503,16 @@ function draw() {
   // Рисование флага (только если собрано достаточно монет)
   if (coinsCollectedInLevel >= coinsToWin) {
     if (flag.x < camera.x + camera.width && flag.x + flag.width > camera.x) {
-      ctx.fillStyle = flag.color;
-      ctx.fillRect(flag.x, flag.y, 8, flag.height);
+      // Используем текстуру активного флага
+      if (svgImages.flag) {
+        ctx.drawImage(svgImages.flag, flag.x, flag.y, flag.width, flag.height);
+      } else {
+        // Запасной вариант
+        ctx.fillStyle = flag.color;
+        ctx.fillRect(flag.x, flag.y, 8, flag.height);
+      }
 
-      // Анимация флага
-      const wave = Math.sin(animationTime * 3) * 5;
-      ctx.beginPath();
-      ctx.moveTo(flag.x, flag.y);
-      ctx.lineTo(flag.x, flag.y - 30);
-      ctx.lineTo(flag.x + 35 + wave, flag.y - 15);
-      ctx.closePath();
-      ctx.fill();
-
-      // Частицы вокруг флага
+      // Анимация частиц вокруг флага
       ctx.fillStyle = "#ff6b6b";
       for (let i = 0; i < 5; i++) {
         const angle = animationTime * 2 + i * 1.2;
@@ -1360,21 +1527,20 @@ function draw() {
   } else {
     // Рисование заблокированного флага
     if (flag.x < camera.x + camera.width && flag.x + flag.width > camera.x) {
-      ctx.fillStyle = "#666666";
-      ctx.fillRect(flag.x, flag.y, 8, flag.height);
-      ctx.beginPath();
-      ctx.moveTo(flag.x, flag.y);
-      ctx.lineTo(flag.x, flag.y - 30);
-      ctx.lineTo(flag.x + 35, flag.y - 15);
-      ctx.closePath();
-      ctx.fill();
-
-      // Замок
-      ctx.fillStyle = "#333333";
-      ctx.fillRect(flag.x + 10, flag.y - 20, 15, 10);
-      ctx.beginPath();
-      ctx.arc(flag.x + 17, flag.y - 10, 8, 0, Math.PI);
-      ctx.fill();
+      // Используем текстуру неактивного флага
+      if (svgImages.flagDisabled) {
+        ctx.drawImage(
+          svgImages.flagDisabled,
+          flag.x,
+          flag.y,
+          flag.width,
+          flag.height,
+        );
+      } else {
+        // Запасной вариант
+        ctx.fillStyle = "#666666";
+        ctx.fillRect(flag.x, flag.y, 8, flag.height);
+      }
     }
   }
 
@@ -1441,9 +1607,11 @@ function updateDamageSystem() {
   if (isInvulnerable) {
     invulnerabilityTimer--;
 
-    // Мигание каждые 5 кадров
-    if (invulnerabilityTimer % 10 < 5) {
-      damageFlashTimer = 5;
+    // Мигание каждые 30 кадров (примерно 0.5 секунды при 60 FPS)
+    if (invulnerabilityTimer % 30 < 15) {
+      damageFlashTimer = 5; // видимый
+    } else {
+      damageFlashTimer = 0; // невидимый
     }
 
     if (invulnerabilityTimer <= 0) {
@@ -1612,7 +1780,7 @@ function update() {
     }
 
     // Атака с геймпада (кнопка X)
-    if (gamepad.buttons[2].pressed && !isAttacking && attackCooldown <= 0) {
+    if (gamepad.buttons[3].pressed && !isAttacking && attackCooldown <= 0) {
       isAttacking = true;
       attackCooldown = 25;
     }
@@ -1701,25 +1869,45 @@ function update() {
       player.y < enemy.y + enemy.height &&
       player.y + player.height > enemy.y
     ) {
-      if (
+      // Проверка атаки на бронированных врагов
+      if (isAttacking && enemy.type === "armored") {
+        enemies.splice(i, 1);
+        player.velY = -8; // небольшой отскок при убийстве атакой
+
+        coins += 3;
+        coinsCollectedInLevel += 3;
+        coinCountElement.textContent = coins;
+        updateLevelGoalDisplay();
+
+        playSound("enemy_defeat", 0.8);
+        playSound("enemy_coin", 0.6);
+      }
+      // Обычные враги (уязвимы к прыжкам)
+      else if (
         player.velY > 0 &&
-        player.y + player.height < enemy.y + enemy.height / 2
+        player.y + player.height < enemy.y + enemy.height / 2 &&
+        !enemy.isArmored // Бронированные неуязвимы к прыжкам
       ) {
         enemies.splice(i, 1);
         player.velY = -12;
 
-        // Добавляем монеты за убийство врага
         coins += 2;
         coinsCollectedInLevel += 2;
         coinCountElement.textContent = coins;
         updateLevelGoalDisplay();
 
         playSound("jump_hit", 0.7);
-        playSound("enemy_death", 0.6);
-        playSound("enemy_defeat", 0.5);
+        playSound("enemy_defeat", 0.6);
         playSound("enemy_coin", 0.5);
-
-        console.log(`+2 монеты за убийство врага!`);
+      }
+      // Бронированные враги при прыжке на них - отскакиваем без убийства
+      else if (
+        player.velY > 0 &&
+        player.y + player.height < enemy.y + enemy.height / 2 &&
+        enemy.isArmored
+      ) {
+        player.velY = -10; // отскок от бронированного врага
+        playSound("jump_hit", 0.5);
       } else if (!isInvulnerable) {
         playSound("enemy_attack", 0.6);
         takeDamage();
