@@ -362,6 +362,7 @@ async function loadAllSVGs() {
     console.log("Начало загрузки SVG...");
     
     const loadPromises = [
+      loadSVG("player_ninja", "./assets/images/characters/ninja/afk/ninja_afk.svg"),
       loadSVG("head", "./assets/images/characters/cat/head.svg"),
       loadSVG("body", "./assets/images/characters/cat/body.svg"),
       loadSVG(
@@ -387,7 +388,7 @@ async function loadAllSVGs() {
         "rightShin",
         "./assets/images/characters/cat/right_shin.svg",
       ),
-      loadSVG("background", "./assets/images/backgrounds/forest/forest-1.png"),
+      loadSVG("background", "./assets/images/backgrounds/forest/forest-1.svg"),
       loadSVG("coin", "./assets/images/elements/coin.svg"),
       loadSVG("flag", "./assets/images/elements/flag.svg"),
       loadSVG("flagDisabled", "./assets/images/elements/flag-disabled.svg"),
@@ -1402,10 +1403,22 @@ function draw() {
 
   // Рисование фона
   if (svgImages.background) {
-    const pattern = ctx.createPattern(svgImages.background, "repeat");
-    ctx.fillStyle = pattern;
-    ctx.fillRect(camera.x, camera.y, levelWidth, levelHeight);
-  } else {
+    // старый метод
+    // const pattern = ctx.createPattern(svgImages.background, "repeat");
+    // ctx.fillStyle = pattern;
+    // ctx.fillRect(camera.x, camera.y, levelWidth, levelHeight);
+    const bgImg = svgImages.background;
+    const bgAspectRatio = bgImg.width / bgImg.height;
+    const bgHeight = levelHeight;
+    const bgWidth = bgHeight * bgAspectRatio;
+    const numRepeats = Math.ceil(levelWidth / bgWidth) + 1;
+    
+    for (let i = 0; i < numRepeats; i++) {
+      const x = i * bgWidth;
+      ctx.drawImage(bgImg, x, 0, bgWidth, bgHeight);
+    }
+  }
+  else {
     const gradient = ctx.createLinearGradient(0, 0, 0, levelHeight);
     gradient.addColorStop(0, "#87CEEB");
     gradient.addColorStop(0.7, "#1E90FF");
