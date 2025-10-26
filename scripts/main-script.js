@@ -1,6 +1,7 @@
 // Основные переменные игры
 const canvas = document.getElementById("gameCanvas");
 const ctx = canvas.getContext("2d");
+const preloadScreen = document.getElementById("preloadScreen");
 const startScreen = document.getElementById("startScreen");
 const gameOverScreen = document.getElementById("gameOverScreen");
 const levelCompleteScreen = document.getElementById("levelCompleteScreen");
@@ -24,7 +25,7 @@ const musicVolumeSlider = document.getElementById("musicVolume");
 const sfxVolumeSlider = document.getElementById("sfxVolume");
 
 // Игровые переменные
-let gameState = "menu"; // menu, playing, paused, gameOver, levelComplete
+let gameState = "preload"; // preload, menu, playing, paused, gameOver, levelComplete
 let coins = 0;
 let lives = 150;
 let level = 1;
@@ -76,6 +77,10 @@ let audioContext = null;
 let sounds = {};
 let audioInitialized = false;
 let audioEnabled = false;
+
+// Музыкальные треки
+let currentMusic = null;
+let currentMusicGainNode = null;
 
 // Инициализация аудио контекста
 function initializeAudio() {
@@ -154,8 +159,11 @@ async function loadAllSounds() {
     {
       name: "main_menu_theme",
       url: "./Assets/Audio/Music/MainTheme/main_menu_theme.mp3",
-    }, // пока без темы меню, приколы
-    // { name: "sad_theme", url: "./Assets/Audio/Music/MainTheme/sad_theme.mp3" }, // не используется
+    },
+    {
+      name: "forest_theme", 
+      url: "./Assets/Audio/Music/MainTheme/forest_theme.mp3",
+    },
     {
       name: "level_complete",
       url: "./Assets/Audio/Music/Levels/level_complete.mp3",
@@ -166,7 +174,6 @@ async function loadAllSounds() {
     { name: "jump", url: "./Assets/Audio/SFX/Player/jump.mp3" },
     { name: "jump_hit", url: "./Assets/Audio/SFX/Player/jump_hit.mp3" },
     { name: "land", url: "./Assets/Audio/SFX/Player/land.mp3" },
-    // { name: "move", url: "./Assets/Audio/SFX/Player/move.mp3" }, пока без этого прикола, ужасные звуки
     {
       name: "player_damage",
       url: "./Assets/Audio/SFX/Player/player_damage.mp3",
@@ -195,10 +202,6 @@ async function loadAllSounds() {
   );
   console.log("Все звуки загружены");
 }
-
-// Музыкальные треки
-let currentMusic = null;
-let currentMusicGainNode = null;
 
 // Воспроизведение музыки
 function playMusic(name, loop = true, volume = 0.6) {
@@ -267,34 +270,36 @@ function updateSFXVolume() {
   // Громкость SFX обновляется при каждом воспроизведении звука
 }
 
-// ВКЛЮЧЕНИЕ ИГРОВОГО ЗВУКА
-function enableGameAudio() {
+// ВКЛЮЧЕНИЕ ИГРОВОГО ЗВУКА ПРИ ЗАГРУЗКЕ СТРАНИЦЫ
+async function enableGameAudio() {
   if (audioEnabled) return;
 
   initializeAudio();
-  loadAllSounds().then(() => {
-    playMusic("main_menu_theme", true, musicVolume);
-    audioEnabled = true;
-    console.log("Игровой звук включен");
-  });
+  await loadAllSounds();
+  audioEnabled = true;
+  console.log("Игровой звук включен");
+  return true; // возвращаем значение для Promise.all
 }
 
-// АВТОМАТИЧЕСКАЯ ПОПЫТКА ВКЛЮЧЕНИЯ ЗВУКА ПРИ ЗАГРУЗКЕ
-window.addEventListener("DOMContentLoaded", () => {
-  setTimeout(() => {
-    try {
-      enableGameAudio();
-    } catch (error) {
-      console.log(
-        "Автоматическое включение звука не удалось, ждем пользователя",
-      );
-    }
-  }, 1000);
-});
+// Функция для показа главного меню
+function showMainMenu() {
+  preloadScreen.classList.add("hidden");
+  startScreen.classList.remove("hidden");
+  gameState = "menu";
+  
+  // Воспроизводим музыку меню
+  if (audioEnabled) {
+    playMusic("main_menu_theme", true, musicVolume);
+  }
+}
 
-// ВКЛЮЧЕНИЕ ЗВУКА ПРИ ЛЮБОМ ВЗАИМОДЕЙСТВИИ ПОЛЬЗОВАТЕЛЯ
-document.addEventListener("click", enableGameAudio, { once: true });
-document.addEventListener("keydown", enableGameAudio, { once: true });
+preloadScreen.addEventListener("click", async () => {
+  // Включаем аудио при первом клике на экран предзагрузки
+  if (!audioEnabled) {
+    await enableGameAudio();
+  }
+  showMainMenu();
+});
 
 // Загрузка SVG
 function loadSVG(id, src) {
@@ -317,32 +322,32 @@ function loadSVG(id, src) {
 async function loadAllSVGs() {
   try {
     await Promise.all([
-      loadSVG("head", "./assets/images/characters/character/head.svg"),
-      loadSVG("body", "./assets/images/characters/character/body.svg"),
+      loadSVG("head", "./assets/images/characters/cat/head.svg"),
+      loadSVG("body", "./assets/images/characters/cat/body.svg"),
       loadSVG(
         "leftShoulder",
-        "./assets/images/characters/character/left_shoulder.svg",
+        "./assets/images/characters/cat/left_shoulder.svg",
       ),
       loadSVG(
         "rightShoulder",
-        "./assets/images/characters/character/right_shoulder.svg",
+        "./assets/images/characters/cat/right_shoulder.svg",
       ),
       loadSVG(
         "leftForearm",
-        "./assets/images/characters/character/left_forearm.svg",
+        "./assets/images/characters/cat/left_forearm.svg",
       ),
       loadSVG(
         "rightForearm",
-        "./assets/images/characters/character/right_forearm.svg",
+        "./assets/images/characters/cat/right_forearm.svg",
       ),
-      loadSVG("leftHip", "./assets/images/characters/character/left_hip.svg"),
-      loadSVG("rightHip", "./assets/images/characters/character/right_hip.svg"),
-      loadSVG("leftShin", "./assets/images/characters/character/left_shin.svg"),
+      loadSVG("leftHip", "./assets/images/characters/cat/left_hip.svg"),
+      loadSVG("rightHip", "./assets/images/characters/cat/right_hip.svg"),
+      loadSVG("leftShin", "./assets/images/characters/cat/left_shin.svg"),
       loadSVG(
         "rightShin",
-        "./assets/images/characters/character/right_shin.svg",
+        "./assets/images/characters/cat/right_shin.svg",
       ),
-      loadSVG("background", "./assets/images/backgrounds/fon/fon.svg"),
+      loadSVG("background", "./assets/images/backgrounds/forest/forest-1.png"),
       loadSVG("coin", "./assets/images/elements/coin.svg"),
       loadSVG("flag", "./assets/images/elements/flag.svg"),
       loadSVG("flagDisabled", "./assets/images/elements/flag-disabled.svg"),
@@ -914,6 +919,21 @@ function createEnemies() {
 // Инициализация игры
 function init() {
   console.log("Инициализация игры...");
+  
+  // ПОКАЗЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ НАЧАЛЕ ИГРЫ
+  const uiOverlay = document.querySelector('.ui-overlay');
+  const gamepadStatus = document.getElementById('gamepadStatus');
+  if (uiOverlay) uiOverlay.classList.remove('hidden');
+  if (gamepadStatus) gamepadStatus.classList.remove('hidden');
+  
+  // Останавливаем музыку меню при начале игры
+  if (gameState === "menu") {
+    stopMusic();
+    // Воспроизводим музыку леса для первых уровней
+    if (level >= 1 && level <= 3) {
+      playMusic("forest_theme", true, musicVolume);
+    }
+  }
 
   // Установка размера canvas
   resizeCanvas();
@@ -1045,10 +1065,8 @@ function init() {
   isFacingRight = true;
   animationTime = 0;
   pauseKeyPressed = false;
-  // if (gameState === "playing" && audioInitialized) {
-  //   playMusic("main_menu_theme", true, musicVolume);
-  // }
 }
+
 // Обновление отображения цели уровня
 function updateLevelGoalDisplay() {
   const levelGoalElement = document.getElementById("levelGoal");
@@ -1315,6 +1333,11 @@ function updateEnemies() {
 function draw() {
   // Очистка canvas (теперь очищаем только видимую область)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  // Если игра в состоянии preload или menu, не рисуем игровой мир 
+  if (gameState === "preload" || gameState === "menu") {
+    return;
+  }
 
   // Сохраняем текущее состояние контекста
   ctx.save();
@@ -1677,6 +1700,11 @@ function handleKeyboardInput() {
 
 // Обновление игровой логики
 function update() {
+  // Если игра в состоянии preload или menu, не обновляем игровую логику 
+  if (gameState === "preload" || gameState === "menu") {
+    return;
+  }
+
   // Обработка паузы - добавляем сенсорную кнопку паузы если нужно
   let pausePressed = keys["Escape"] || keys["KeyP"];
 
@@ -1984,14 +2012,15 @@ if (sfxVolumeSlider) {
 
 // Начало игры
 startButton.addEventListener("click", () => {
-  //гарантируем, что аудио включено
-  if (!audioEnabled) {
-    enableGameAudio();
-  }
-
   startScreen.classList.add("hidden");
   gameState = "playing";
-  stopMusic("main_menu_theme");
+  
+  // Останавливаем музыку меню и запускаем игровую
+  stopMusic();
+  if (level >= 1 && level <= 3) {
+    playMusic("forest_theme", true, musicVolume);
+  }
+  
   playSound("ui_click", 0.5);
   init();
 });
@@ -2004,8 +2033,15 @@ restartButton.addEventListener("click", () => {
   coins = 0;
   level = 1;
   gameState = "playing";
-  // stopMusic();
-  // playMusic("main_menu_theme", true, musicVolume);
+  // СКРЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ РЕСТАРТЕ (ОНИ ПОКАЖУТСЯ В init())
+  const uiOverlay = document.querySelector('.ui-overlay');
+  const gamepadStatus = document.getElementById('gamepadStatus');
+  if (uiOverlay) uiOverlay.classList.add('hidden');
+  if (gamepadStatus) gamepadStatus.classList.add('hidden');
+  // Останавливаем музыку и запускаем соответствующую уровню 
+  stopMusic();
+  playMusic("forest_theme", true, musicVolume);
+  
   init();
 });
 
@@ -2016,8 +2052,21 @@ nextLevelButton.addEventListener("click", () => {
   level++;
   levelCountElement.textContent = level;
   gameState = "playing";
-  // stopMusic();
-  // playMusic("main_menu_theme", true, musicVolume);
+  
+  // Останавливаем текущую музыку и запускаем соответствующую новому уровню 
+  stopMusic();
+  
+  // Воспроизводим музыку в зависимости от уровня
+  if (level >= 1 && level <= 3) {
+    playMusic("forest_theme", true, musicVolume);
+  } else if (level >= 4 && level <= 6) {
+    // Музыка для горных уровней
+    playMusic("forest_theme", true, musicVolume); // временно
+  } else {
+    // Музыка для замка
+    playMusic("forest_theme", true, musicVolume); // временно
+  }
+  
   init();
 
   // Увеличиваем сложность
@@ -2041,11 +2090,22 @@ restartPauseButton.addEventListener("click", () => {
   coins = 0;
   level = 1;
   gameState = "playing";
-  // stopMusic();
-  // playMusic("main_menu_theme", true, musicVolume);
+  // СКРЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ РЕСТАРТЕ (ОНИ ПОКАЖУТСЯ В init())
+  const uiOverlay = document.querySelector('.ui-overlay');
+  const gamepadStatus = document.getElementById('gamepadStatus');
+  if (uiOverlay) uiOverlay.classList.add('hidden');
+  if (gamepadStatus) gamepadStatus.classList.add('hidden');
+  // Останавливаем музыку и запускаем соответствующую уровню 
+  stopMusic();
+  playMusic("forest_theme", true, musicVolume);
+  
   init();
 });
 
+// Обработчик клика для экрана предзагрузки 
+preloadScreen.addEventListener("click", () => {
+  showMainMenu();
+});
 // Слушатели событий клавиатуры
 window.addEventListener("keydown", keyDownHandler);
 window.addEventListener("keyup", keyUpHandler);
@@ -2073,17 +2133,17 @@ window.addEventListener("resize", resizeCanvas);
 // Постоянная проверка геймпада
 setInterval(handleGamepad, 100);
 
-// Запуск игры после загрузки SVG
-loadAllSVGs()
-  .then(() => {
-    console.log("Игра запускается...");
-
-    // Не инициализируем аудио автоматически, ждем действий пользователя
-    gameLoop();
-    init();
-  })
-  .catch((error) => {
-    console.log("Запуск с заглушками из-за ошибки загрузки:", error);
-    gameLoop();
-    init();
-  });
+// Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
+Promise.all([
+  loadAllSVGs(),
+  enableGameAudio()
+])
+.then(() => {
+  console.log("Все ресурсы загружены, ожидаем пользователя...");
+  // Только запускаем игровой цикл, но не инициализируем игру
+  gameLoop();
+})
+.catch((error) => {
+  console.log("Запуск с заглушками из-за ошибки загрузки:", error);
+  gameLoop();
+});
