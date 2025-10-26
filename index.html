@@ -28,6 +28,7 @@
             <h1 class="title">NINJA RUN</h1>
             <p class="subtitle">Используйте клавиатуру или геймпад для игры</p>
             <button id="startButton">Начать игру</button>
+            <div id="startButtonLoader" class="button-loader hidden"></div>
         </div>
         
         <div id="gameOverScreen" class="screen hidden">
@@ -47,6 +48,7 @@
             <p class="subtitle">Собрано монет: <span id="pauseCoins">0</span>/<span id="pauseGoal">0</span></p>
             <button id="resumeButton">Продолжить</button>
             <button id="restartPauseButton">Начать заново</button>
+            <button id="mainMenuButton">Главное меню</button>
             <div class="volume-controls">
                 <label>Громкость музыки:</label>
                 <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="0.6">

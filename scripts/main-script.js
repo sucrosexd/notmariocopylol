@@ -11,6 +11,7 @@ const restartButton = document.getElementById("restartButton");
 const nextLevelButton = document.getElementById("nextLevelButton");
 const resumeButton = document.getElementById("resumeButton");
 const restartPauseButton = document.getElementById("restartPauseButton");
+const mainMenuButton = document.getElementById("mainMenuButton");
 const coinCountElement = document.getElementById("coinCount");
 const livesCountElement = document.getElementById("livesCount");
 const levelCountElement = document.getElementById("levelCount");
@@ -31,6 +32,9 @@ let lives = 150;
 let level = 1;
 let gamepad = null;
 let isGamepadConnected = false;
+
+// ПЕРЕМЕННАЯ ДЛЯ ЗАЩИТЫ ОТ ПОВТОРНЫХ НАЖАТИЙ
+let isGameLoading = false;
 
 // Настройки громкости
 let musicVolume = 0.6;
@@ -81,6 +85,17 @@ let audioEnabled = false;
 // Музыкальные треки
 let currentMusic = null;
 let currentMusicGainNode = null;
+
+// ФУНКЦИЯ ВОССТАНОВЛЕНИЯ КНОПКИ СТАРТ
+function resetStartButton() {
+    const startButtonText = document.getElementById("startButtonText");
+    const startButtonLoader = document.getElementById("startButtonLoader");
+    
+    if (startButtonText) startButtonText.textContent = "Начать игру";
+    if (startButtonLoader) startButtonLoader.classList.add("hidden");
+    if (startButton) startButton.disabled = false;
+    isGameLoading = false;
+}
 
 // Инициализация аудио контекста
 function initializeAudio() {
@@ -293,12 +308,21 @@ function showMainMenu() {
   }
 }
 
+// ОБНОВЛЕННЫЙ ОБРАБОТЧИК PRELOAD SCREEN С ЗАЩИТОЙ ОТ ПОВТОРНЫХ НАЖАТИЙ
 preloadScreen.addEventListener("click", async () => {
-  // Включаем аудио при первом клике на экран предзагрузки
-  if (!audioEnabled) {
-    await enableGameAudio();
-  }
-  showMainMenu();
+    // Блокируем повторные нажатия
+    preloadScreen.style.pointerEvents = 'none';
+    
+    try {
+        console.log("Загружаем аудио...");
+        await enableGameAudio();
+        console.log("Аудио загружено успешно");
+        showMainMenu();
+    } catch (error) {
+        console.error("Ошибка загрузки:", error);
+        // Разблокируем при ошибке
+        preloadScreen.style.pointerEvents = 'auto';
+    }
 });
 
 // Загрузка SVG
@@ -315,13 +339,23 @@ function loadSVG(id, src) {
       reject(new Error(`Не удалось загрузить ${src}`));
     };
     img.src = src;
+    
+    // ДОБАВЛЯЕМ ТАЙМАУТ НА СЛУЧАЙ ЕСЛИ ЗАГРУЗКА ЗАВИСНЕТ
+    setTimeout(() => {
+      if (!svgImages[id]) {
+        console.error(`Таймаут загрузки SVG: ${src}`);
+        reject(new Error(`Таймаут загрузки ${src}`));
+      }
+    }, 10000); // 10 секунд таймаут
   });
 }
 
-// Загрузка всех SVG для кота
+// ОБНОВЛЕННАЯ ЗАГРУЗКА ВСЕХ SVG С УЛУЧШЕННОЙ ОБРАБОТКОЙ ОШИБОК
 async function loadAllSVGs() {
   try {
-    await Promise.all([
+    console.log("Начало загрузки SVG...");
+    
+    const loadPromises = [
       loadSVG("head", "./assets/images/characters/cat/head.svg"),
       loadSVG("body", "./assets/images/characters/cat/body.svg"),
       loadSVG(
@@ -351,10 +385,15 @@ async function loadAllSVGs() {
       loadSVG("coin", "./assets/images/elements/coin.svg"),
       loadSVG("flag", "./assets/images/elements/flag.svg"),
       loadSVG("flagDisabled", "./assets/images/elements/flag-disabled.svg"),
-    ]);
-    console.log("Все SVG изображения кота загружены успешно");
+    ];
+
+    // Загружаем все параллельно с улучшенной обработкой ошибок
+    await Promise.all(loadPromises);
+    console.log("Все SVG изображения загружены успешно");
+    return true;
   } catch (error) {
     console.error("Ошибка при загрузке SVG:", error);
+    throw error;
   }
 }
 
@@ -916,155 +955,165 @@ function createEnemies() {
   return enemies;
 }
 
-// Инициализация игры
+// ОБНОВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ ИГРЫ С ПРОВЕРКОЙ ЗАГРУЗКИ SVG
 function init() {
-  console.log("Инициализация игры...");
-  
-  // ПОКАЗЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ НАЧАЛЕ ИГРЫ
-  const uiOverlay = document.querySelector('.ui-overlay');
-  const gamepadStatus = document.getElementById('gamepadStatus');
-  if (uiOverlay) uiOverlay.classList.remove('hidden');
-  if (gamepadStatus) gamepadStatus.classList.remove('hidden');
-  
-  // Останавливаем музыку меню при начале игры
-  if (gameState === "menu") {
-    stopMusic();
-    // Воспроизводим музыку леса для первых уровней
-    if (level >= 1 && level <= 3) {
-      playMusic("forest_theme", true, musicVolume);
+    // ПРОВЕРЯЕМ, ЧТО SVG ЗАГРУЖЕНЫ
+    if (Object.keys(svgImages).length === 0) {
+        console.error("SVG не загружены! Игра не может быть запущена.");
+        // ВОЗВРАЩАЕМ ПОЛЬЗОВАТЕЛЯ В МЕНЮ
+        startScreen.classList.remove("hidden");
+        gameState = "menu";
+        resetStartButton();
+        return;
     }
-  }
+    
+    console.log("Инициализация игры...");
+    
+    // ПОКАЗЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ НАЧАЛЕ ИГРЫ
+    const uiOverlay = document.querySelector('.ui-overlay');
+    const gamepadStatus = document.getElementById('gamepadStatus');
+    if (uiOverlay) uiOverlay.classList.remove('hidden');
+    if (gamepadStatus) gamepadStatus.classList.remove('hidden');
+    
+    // Останавливаем музыку меню при начале игры
+    if (gameState === "menu") {
+        stopMusic();
+        // Воспроизводим музыку леса для первых уровней
+        if (level >= 1 && level <= 3) {
+            playMusic("forest_theme", true, musicVolume);
+        }
+    }
 
-  // Установка размера canvas
-  resizeCanvas();
+    // Установка размера canvas
+    resizeCanvas();
 
-  // Сброс счетчиков уровня (НЕ сбрасываем общие монеты)
-  coinsCollectedInLevel = 0;
-  coinsToWin = 15 + level * 7;
+    // Сброс счетчиков уровня (НЕ сбрасываем общие монеты)
+    coinsCollectedInLevel = 0;
+    coinsToWin = 15 + level * 7;
 
-  // Создание уровня
-  platforms = [];
-  coinsList = [];
+    // Создание уровня
+    platforms = [];
+    coinsList = [];
 
-  // Основная земля
-  platforms.push({
-    x: 0,
-    y: levelHeight - 30,
-    width: levelWidth,
-    height: 30,
-    color: "#000000ff",
-    hasCoins: false,
-  });
+    // Основная земля
+    platforms.push({
+        x: 0,
+        y: levelHeight - 30,
+        width: levelWidth,
+        height: 30,
+        color: "#000000ff",
+        hasCoins: false,
+    });
 
-  // Создание основного пути
-  const mainPath = createLevelPath();
-  platforms.push(...mainPath.platforms);
-  coinsList.push(...mainPath.coins);
+    // Создание основного пути
+    const mainPath = createLevelPath();
+    platforms.push(...mainPath.platforms);
+    coinsList.push(...mainPath.coins);
 
-  console.log(`Основной путь: ${mainPath.totalCoins} монет`);
+    console.log(`Основной путь: ${mainPath.totalCoins} монет`);
 
-  // Добавляем монеты на земле
-  const groundCoins = createGroundCoins();
-  coinsList.push(...groundCoins);
-  console.log(`Добавлено ${groundCoins.length} монет на земле`);
+    // Добавляем монеты на земле
+    const groundCoins = createGroundCoins();
+    coinsList.push(...groundCoins);
+    console.log(`Добавлено ${groundCoins.length} монет на земле`);
 
-  // Если монет недостаточно, добавляем дополнительные платформы
-  if (mainPath.totalCoins + groundCoins.length < coinsToWin) {
-    const neededCoins =
-      coinsToWin - (mainPath.totalCoins + groundCoins.length) + 5;
-    const additional = createAdditionalPlatforms(
-      mainPath.platforms,
-      [...mainPath.coins, ...groundCoins],
-      neededCoins,
-    );
-    platforms.push(...additional.platforms);
-    coinsList.push(...additional.coins);
+    // Если монет недостаточно, добавляем дополнительные платформы
+    if (mainPath.totalCoins + groundCoins.length < coinsToWin) {
+        const neededCoins =
+        coinsToWin - (mainPath.totalCoins + groundCoins.length) + 5;
+        const additional = createAdditionalPlatforms(
+        mainPath.platforms,
+        [...mainPath.coins, ...groundCoins],
+        neededCoins,
+        );
+        platforms.push(...additional.platforms);
+        coinsList.push(...additional.coins);
 
-    console.log(`Добавлено ${additional.coins.length} дополнительных монет`);
-  }
+        console.log(`Добавлено ${additional.coins.length} дополнительных монет`);
+    }
 
-  // Гарантируем, что монет достаточно для завершения уровня
-  while (coinsList.length < coinsToWin) {
+    // Гарантируем, что монет достаточно для завершения уровня
+    while (coinsList.length < coinsToWin) {
+        console.log(
+        `Недостаточно монет! Нужно: ${coinsToWin}, есть: ${coinsList.length}. Добавляем...`,
+        );
+
+        const x = Math.random() * (flag.x - 600) + 200;
+        const y = Math.random() * 300 + 700;
+
+        let overlaps = false;
+        for (let platform of platforms) {
+        if (Math.abs(x - platform.x) < 200 && Math.abs(y - platform.y) < 100) {
+            overlaps = true;
+            break;
+        }
+        }
+
+        if (!overlaps) {
+        const platform = createRandomPlatform(x, y);
+        platform.hasCoins = true;
+
+        platforms.push(platform);
+        const platformCoins = createCoinsOnPlatform(platform);
+        if (platformCoins.length > 1) {
+            platformCoins.splice(1);
+        }
+        coinsList.push(...platformCoins);
+        }
+    }
+
     console.log(
-      `Недостаточно монет! Нужно: ${coinsToWin}, есть: ${coinsList.length}. Добавляем...`,
+        `Всего монет на уровне: ${coinsList.length}, нужно: ${coinsToWin}`,
     );
 
-    const x = Math.random() * (flag.x - 600) + 200;
-    const y = Math.random() * 300 + 700;
+    // Создание врагов
+    enemies = createEnemies();
 
-    let overlaps = false;
-    for (let platform of platforms) {
-      if (Math.abs(x - platform.x) < 200 && Math.abs(y - platform.y) < 100) {
-        overlaps = true;
-        break;
-      }
-    }
+    const platformEnemies = enemies.filter(
+        (e) => e.type === "platform" || e.type === "jumping",
+    ).length;
+    console.log(
+        `Создано врагов: ${enemies.length} (${enemies.filter((e) => e.isFlying).length} летающих, ${platformEnemies} на платформах)`,
+    );
 
-    if (!overlaps) {
-      const platform = createRandomPlatform(x, y);
-      platform.hasCoins = true;
+    // Сброс позиции игрока и камеры
+    player.x = 100;
+    player.y = 800;
+    player.velX = 0;
+    player.velY = 0;
+    player.jumping = false;
+    player.grounded = false;
+    player.lastGroundedState = false;
+    player.direction = 1;
 
-      platforms.push(platform);
-      const platformCoins = createCoinsOnPlatform(platform);
-      if (platformCoins.length > 1) {
-        platformCoins.splice(1);
-      }
-      coinsList.push(...platformCoins);
-    }
-  }
+    // Сброс системы урона
+    isInvulnerable = false;
+    invulnerabilityTimer = 0;
+    damageFlashTimer = 0;
 
-  console.log(
-    `Всего монет на уровне: ${coinsList.length}, нужно: ${coinsToWin}`,
-  );
-
-  // Создание врагов
-  enemies = createEnemies();
-
-  const platformEnemies = enemies.filter(
-    (e) => e.type === "platform" || e.type === "jumping",
-  ).length;
-  console.log(
-    `Создано врагов: ${enemies.length} (${enemies.filter((e) => e.isFlying).length} летающих, ${platformEnemies} на платформах)`,
-  );
-
-  // Сброс позиции игрока и камеры
-  player.x = 100;
-  player.y = 800;
-  player.velX = 0;
-  player.velY = 0;
-  player.jumping = false;
-  player.grounded = false;
-  player.lastGroundedState = false;
-  player.direction = 1;
-
-  // Сброс системы урона
-  isInvulnerable = false;
-  invulnerabilityTimer = 0;
-  damageFlashTimer = 0;
-
-  // Инициализация камеры
-  camera.x = 0;
-  camera.y = levelHeight - camera.height;
-
-  // Ограничения по вертикали
-  if (camera.y < 0) camera.y = 0;
-  if (camera.y + camera.height > levelHeight)
+    // Инициализация камеры
+    camera.x = 0;
     camera.y = levelHeight - camera.height;
 
-  // УБРАН СБРОС ОБЩИХ МОНЕТ: coins = 0;
-  coinCountElement.textContent = coins; // Отображаем накопленные монеты
-  livesCountElement.textContent = lives;
-  levelCountElement.textContent = level;
+    // Ограничения по вертикали
+    if (camera.y < 0) camera.y = 0;
+    if (camera.y + camera.height > levelHeight)
+        camera.y = levelHeight - camera.height;
 
-  // Обновляем отображение цели уровня
-  updateLevelGoalDisplay();
+    // УБРАН СБРОС ОБЩИХ МОНЕТ: coins = 0;
+    coinCountElement.textContent = coins; // Отображаем накопленные монеты
+    livesCountElement.textContent = lives;
+    levelCountElement.textContent = level;
 
-  // Сброс анимационных переменных
-  isAttacking = false;
-  attackCooldown = 0;
-  isFacingRight = true;
-  animationTime = 0;
-  pauseKeyPressed = false;
+    // Обновляем отображение цели уровня
+    updateLevelGoalDisplay();
+
+    // Сброс анимационных переменных
+    isAttacking = false;
+    attackCooldown = 0;
+    isFacingRight = true;
+    animationTime = 0;
+    pauseKeyPressed = false;
 }
 
 // Обновление отображения цели уровня
@@ -2010,19 +2059,60 @@ if (sfxVolumeSlider) {
   });
 }
 
-// Начало игры
-startButton.addEventListener("click", () => {
-  startScreen.classList.add("hidden");
-  gameState = "playing";
-  
-  // Останавливаем музыку меню и запускаем игровую
-  stopMusic();
-  if (level >= 1 && level <= 3) {
-    playMusic("forest_theme", true, musicVolume);
-  }
-  
-  playSound("ui_click", 0.5);
-  init();
+// ОБНОВЛЕННЫЙ ОБРАБОТЧИК КНОПКИ "НАЧАТЬ ИГРУ" С ЗАЩИТОЙ ОТ БЫСТРЫХ НАЖАТИЙ
+startButton.addEventListener("click", async () => {
+    // Защита от повторного нажатия
+    if (isGameLoading) return;
+    isGameLoading = true;
+    
+    // Показываем индикатор загрузки
+    const startButtonText = document.getElementById("startButtonText");
+    const startButtonLoader = document.getElementById("startButtonLoader");
+    
+    if (startButtonText) startButtonText.textContent = "Загрузка...";
+    if (startButtonLoader) startButtonLoader.classList.remove("hidden");
+    
+    // Блокируем кнопку
+    startButton.disabled = true;
+    
+    try {
+        console.log("Начинаем загрузку игры...");
+        
+        // Проверяем, загружены ли SVG
+        if (Object.keys(svgImages).length === 0) {
+            console.log("Загружаем SVG изображения...");
+            await loadAllSVGs();
+            console.log("SVG изображения загружены успешно");
+        } else {
+            console.log("SVG уже загружены, пропускаем загрузку");
+        }
+        
+        // Небольшая задержка для плавности и чтобы пользователь увидел индикатор
+        await new Promise(resolve => setTimeout(resolve, 800));
+        
+        // Переходим к игре
+        startScreen.classList.add("hidden");
+        gameState = "playing";
+        
+        // Останавливаем музыку меню и запускаем игровую
+        stopMusic();
+        if (level >= 1 && level <= 3) {
+            playMusic("forest_theme", true, musicVolume);
+        }
+        
+        playSound("ui_click", 0.5);
+        init();
+        
+        console.log("Игра успешно запущена");
+        
+    } catch (error) {
+        console.error("Ошибка загрузки игры:", error);
+        // Восстанавливаем кнопку при ошибке
+        resetStartButton();
+        
+        // Показываем сообщение об ошибке пользователю
+        alert("Произошла ошибка при загрузке игры. Пожалуйста, попробуйте еще раз.");
+    }
 });
 
 // Перезапуск игры
@@ -2102,10 +2192,25 @@ restartPauseButton.addEventListener("click", () => {
   init();
 });
 
-// Обработчик клика для экрана предзагрузки 
-preloadScreen.addEventListener("click", () => {
-  showMainMenu();
+mainMenuButton.addEventListener("click", () => {
+  pauseScreen.classList.add("hidden");
+  playSound("ui_click", 0.5);
+  
+  // Скрываем игровые UI элементы
+  const uiOverlay = document.querySelector('.ui-overlay');
+  const gamepadStatus = document.getElementById('gamepadStatus');
+  if (uiOverlay) uiOverlay.classList.add('hidden');
+  if (gamepadStatus) gamepadStatus.classList.add('hidden');
+  
+  // Показываем главное меню
+  startScreen.classList.remove("hidden");
+  gameState = "menu";
+  
+  // Останавливаем игровую музыку и включаем музыку меню
+  stopMusic();
+  playMusic("main_menu_theme", true, musicVolume);
 });
+
 // Слушатели событий клавиатуры
 window.addEventListener("keydown", keyDownHandler);
 window.addEventListener("keyup", keyUpHandler);
