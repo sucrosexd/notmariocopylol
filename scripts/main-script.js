@@ -92,9 +92,15 @@ function resetStartButton() {
     const startButtonLoader = document.getElementById("startButtonLoader");
     
     if (startButtonText) startButtonText.textContent = "Начать игру";
-    if (startButtonLoader) startButtonLoader.classList.add("hidden");
-    if (startButton) startButton.disabled = false;
+    if (startButtonLoader) {
+        startButtonLoader.classList.add("hidden");
+    }
+    if (startButton) {
+        startButton.disabled = false;
+        startButton.style.pointerEvents = 'auto';
+    }
     isGameLoading = false;
+    console.log("Кнопка 'Начать игру' восстановлена");
 }
 
 // Инициализация аудио контекста
@@ -301,7 +307,7 @@ function showMainMenu() {
   preloadScreen.classList.add("hidden");
   startScreen.classList.remove("hidden");
   gameState = "menu";
-  
+  resetStartButton();
   // Воспроизводим музыку меню
   if (audioEnabled) {
     playMusic("main_menu_theme", true, musicVolume);
@@ -2201,11 +2207,11 @@ mainMenuButton.addEventListener("click", () => {
   const gamepadStatus = document.getElementById('gamepadStatus');
   if (uiOverlay) uiOverlay.classList.add('hidden');
   if (gamepadStatus) gamepadStatus.classList.add('hidden');
-  
+  isGameLoading = false;
   // Показываем главное меню
   startScreen.classList.remove("hidden");
   gameState = "menu";
-  
+  resetStartButton();
   // Останавливаем игровую музыку и включаем музыку меню
   stopMusic();
   playMusic("main_menu_theme", true, musicVolume);
