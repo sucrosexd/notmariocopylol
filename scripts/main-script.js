@@ -61,6 +61,16 @@ let invulnerabilityTimer = 0;
 const INVULNERABILITY_DURATION = 180; // 3 секунды при 60 FPS
 let damageFlashTimer = 0;
 
+// Система анимации персонажа
+let characterFrames = {
+    idle: null,
+    run: []
+};
+let currentAnimation = 'idle';
+let animationFrame = 0;
+let animationTimer = 0;
+const ANIMATION_SPEED = 100; // ms между кадрами
+
 // Размер уровня
 let levelWidth = 4800;
 let levelHeight = 1200;
@@ -224,6 +234,42 @@ async function loadAllSounds() {
   console.log("Все звуки загружены");
 }
 
+// Загрузка анимаций персонажа
+function loadCharacterAnimations() {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Загружаем статичную позу
+            characterFrames.idle = await loadImage('../assets/animations/character static.svg');
+            
+            // Загружаем кадры бега
+            characterFrames.run = [
+                await loadImage('../assets/animations/character running 1.svg'),
+                await loadImage('../assets/animations/character running 2.svg'),
+                await loadImage('../assets/animations/character running 3.svg')
+            ];
+            
+            console.log('Анимации персонажа загружены!');
+            resolve();
+        } catch (error) {
+            console.error('Ошибка загрузки анимаций:', error);
+            reject(error);
+        }
+    });
+}
+
+// Вспомогательная функция загрузки изображения
+function loadImage(src) {
+    return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve(img);
+        img.onerror = () => {
+            console.error(`Ошибка загрузки изображения: ${src}`);
+            reject(new Error(`Не удалось загрузить ${src}`));
+        };
+        img.src = src;
+    });
+}
+
 // Воспроизведение музыки
 function playMusic(name, loop = true, volume = 0.6) {
   if (!audioContext || !sounds[name]) {
@@ -362,32 +408,6 @@ async function loadAllSVGs() {
     console.log("Начало загрузки SVG...");
     
     const loadPromises = [
-      loadSVG("player_ninja", "./assets/images/characters/ninja/afk/ninja_afk.svg"),
-      loadSVG("head", "./assets/images/characters/cat/head.svg"),
-      loadSVG("body", "./assets/images/characters/cat/body.svg"),
-      loadSVG(
-        "leftShoulder",
-        "./assets/images/characters/cat/left_shoulder.svg",
-      ),
-      loadSVG(
-        "rightShoulder",
-        "./assets/images/characters/cat/right_shoulder.svg",
-      ),
-      loadSVG(
-        "leftForearm",
-        "./assets/images/characters/cat/left_forearm.svg",
-      ),
-      loadSVG(
-        "rightForearm",
-        "./assets/images/characters/cat/right_forearm.svg",
-      ),
-      loadSVG("leftHip", "./assets/images/characters/cat/left_hip.svg"),
-      loadSVG("rightHip", "./assets/images/characters/cat/right_hip.svg"),
-      loadSVG("leftShin", "./assets/images/characters/cat/left_shin.svg"),
-      loadSVG(
-        "rightShin",
-        "./assets/images/characters/cat/right_shin.svg",
-      ),
       loadSVG("background", "./assets/images/backgrounds/forest/forest-1.svg"),
       loadSVG("coin", "./assets/images/elements/coin.svg"),
       loadSVG("flag", "./assets/images/elements/flag.svg"),
@@ -408,8 +428,8 @@ async function loadAllSVGs() {
 let player = {
   x: 100,
   y: 800,
-  width: 60,
-  height: 90,
+  width: 80,
+  height: 120,
   speed: 8,
   velX: 0,
   velY: 0,
@@ -964,6 +984,8 @@ function createEnemies() {
 
 // ОБНОВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ ИГРЫ С ПРОВЕРКОЙ ЗАГРУЗКИ SVG
 function init() {
+    loadCharacterAnimations();
+
     // ПРОВЕРЯЕМ, ЧТО SVG ЗАГРУЖЕНЫ
     if (Object.keys(svgImages).length === 0) {
         console.error("SVG не загружены! Игра не может быть запущена.");
@@ -1177,57 +1199,52 @@ function drawSVGPart(id, x, y, width, height, rotation) {
   ctx.restore();
 }
 
-// Функция для отрисовки кота из SVG частей
-function drawCat() {
-  const x = player.x + player.width / 2;
-  const y = player.y + player.height / 2;
-
-  ctx.save();
-
-  // Эффект мигания при получении урона
-  if (damageFlashTimer > 0) {
-    ctx.globalAlpha = 0.1;
-  }
-
-  ctx.translate(x, y);
-  ctx.scale(player.direction, 1);
-
-  // Тень
-  if (player.grounded) {
-    ctx.fillStyle = "rgba(0,0,0,0.3)";
-    ctx.beginPath();
-    ctx.ellipse(0, 60, 30, 10, 0, 0, Math.PI * 2);
-    ctx.fill();
-  }
-
-  // Анимация частей тела
-  const walkRotation =
-    (Math.sin(animationTime * 6) * 0.3 * Math.abs(player.velX)) / player.speed;
-  const jumpRotation = player.grounded ? 0 : 0.5;
-
-  // Ноги
-  drawSVGPart("leftShin", -15, 40, 12, 21, walkRotation + jumpRotation);
-  drawSVGPart("rightShin", 15, 40, 13, 22, -walkRotation + jumpRotation);
-
-  // Бедра
-  drawSVGPart("leftHip", -15, 25, 16, 26, walkRotation * 0.5);
-  drawSVGPart("rightHip", 15, 25, 16, 26, -walkRotation * 0.5);
-
-  // Тело
-  drawSVGPart("body", 0, 0, 42, 55, 0);
-
-  // Плечи
-  drawSVGPart("leftShoulder", -20, 5, 17, 27, -walkRotation);
-  drawSVGPart("rightShoulder", 20, 5, 18, 28, walkRotation);
-
-  // Предплечья
-  drawSVGPart("leftForearm", -25, 25, 27, 32, -walkRotation * 1.5);
-  drawSVGPart("rightForearm", 25, 25, 32, 36, walkRotation * 1.5);
-
-  // Голова
-  drawSVGPart("head", 0, -50, 107, 109, 0);
-
-  ctx.restore();
+// Отрисовка персонажа - ФИНАЛЬНАЯ ВЕРСИЯ
+function drawCharacter() {
+    let currentFrame;
+    
+    if (currentAnimation === 'run' && characterFrames.run.length > 0) {
+        currentFrame = characterFrames.run[animationFrame];
+        console.log(`Отрисовка кадра бега: ${animationFrame + 1}/3`);
+    } else {
+        currentFrame = characterFrames.idle;
+        console.log("Отрисовка статичной позы");
+    }
+    
+    if (!currentFrame) {
+        console.error("Анимации не загружены!");
+        return;
+    }
+    
+    // Сохраняем контекст
+    ctx.save();
+    
+    // Эффект мигания при уроне
+    if (damageFlashTimer > 0) {
+        ctx.globalAlpha = 0.5;
+        console.log("Применен эффект мигания");
+    }
+    
+    // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
+    const drawX = player.x;
+    const drawY = player.y;
+    
+    console.log(`Отрисовка персонажа: мир(${player.x}, ${player.y}) камера(${camera.x}, ${camera.y})`);
+    
+    // Отражаем если смотрит влево
+    if (player.direction === -1) {
+        ctx.translate(drawX + player.width, drawY);
+        ctx.scale(-1, 1);
+        ctx.drawImage(currentFrame, 0, 0, player.width, player.height);
+    } else {
+        // Смотрит вправо - рисуем как есть
+        ctx.drawImage(currentFrame, drawX, drawY, player.width, player.height);
+    }
+    
+    // Восстанавливаем контекст
+    ctx.restore();
+    
+    console.log("Персонаж отрисован успешно");
 }
 
 // Обновление анимации монет
@@ -1635,8 +1652,8 @@ function draw() {
     }
   }
 
-  // Рисование кота из SVG частей
-  drawCat();
+  // Рисование ниндзи из SVG частей
+  drawCharacter();
 
   // Восстанавливаем состояние контекста
   ctx.restore();
@@ -1712,6 +1729,60 @@ function updateDamageSystem() {
   }
 }
 
+// Обновление анимации персонажа
+function updatePlayerAnimation() {
+    // Проверяем движение с клавиатуры
+    const isMovingRight = keys["ArrowRight"] || keys["KeyD"];
+    const isMovingLeft = keys["ArrowLeft"] || keys["KeyA"];
+    
+    // Проверяем движение с геймпада
+    let isGamepadMoving = false;
+    let gamepadDirection = 0;
+    
+    if (isGamepadConnected && gamepad) {
+        const leftStickX = gamepad.axes[0];
+        // Dead zone для устранения дрейфа
+        if (Math.abs(leftStickX) > 0.1) {
+            isGamepadMoving = true;
+            gamepadDirection = leftStickX > 0 ? 1 : -1;
+            console.log(`Движение геймпада: стик=${leftStickX.toFixed(2)}, направление=${gamepadDirection}`);
+        }
+    }
+    
+    // Объединяем ввод с клавиатуры и геймпада
+    const isMoving = (isMovingRight || isMovingLeft || isGamepadMoving) && player.grounded;
+    
+    if (isMoving) {
+        currentAnimation = 'run';
+        
+        // Обновляем направление в зависимости от ввода
+        if (isMovingRight) {
+            player.direction = 1;
+            isFacingRight = true;
+        } else if (isMovingLeft) {
+            player.direction = -1;
+            isFacingRight = false;
+        } else if (isGamepadMoving) {
+            player.direction = gamepadDirection;
+            isFacingRight = gamepadDirection > 0;
+        }
+        
+        // Обновляем анимацию
+        animationTimer += 16.67; // deltaTime для 60fps
+        if (animationTimer >= ANIMATION_SPEED) {
+            animationTimer = 0;
+            animationFrame = (animationFrame + 1) % characterFrames.run.length;
+            console.log(`Смена кадра анимации: ${animationFrame + 1}/${characterFrames.run.length}`);
+        }
+    } else {
+        currentAnimation = 'idle';
+        animationFrame = 0;
+        animationTimer = 0;
+    }
+    
+    console.log(`Состояние анимации: ${currentAnimation}, кадр: ${animationFrame}, grounded: ${player.grounded}`);
+}
+
 // Обработка ввода с клавиатуры
 function handleKeyboardInput() {
   // Определяем направление
@@ -1768,6 +1839,8 @@ function handleKeyboardInput() {
 
 // Обновление игровой логики
 function update() {
+  updatePlayerAnimation();
+
   // Если игра в состоянии preload или menu, не обновляем игровую логику 
   if (gameState === "preload" || gameState === "menu") {
     return;
@@ -2258,13 +2331,14 @@ window.addEventListener("resize", resizeCanvas);
 setInterval(handleGamepad, 100);
 
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
-Promise.all([
+Promise.all([9,
   loadAllSVGs(),
   enableGameAudio()
 ])
 .then(() => {
   console.log("Все ресурсы загружены, ожидаем пользователя...");
   // Только запускаем игровой цикл, но не инициализируем игру
+  loadCharacterAnimations();
   gameLoop();
 })
 .catch((error) => {
