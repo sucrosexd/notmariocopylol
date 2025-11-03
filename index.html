@@ -12,7 +12,7 @@
         <p class="subtitle">Нажмите чтобы продолжить</p>
     </div>
     
-    <div class="game-container">
+<div class="game-container">
         <canvas id="gameCanvas"></canvas>
         
         <div class="ui-overlay hidden">
@@ -27,8 +27,11 @@
         <div id="startScreen" class="screen black-bg hidden">
             <h1 class="title">NINJA RUN</h1>
             <p class="subtitle">Используйте клавиатуру или геймпад для игры</p>
-            <button id="startButton">Начать игру</button>
-            <div id="startButtonLoader" class="button-loader hidden"></div>
+            <button id="startButton">
+                <span id="startButtonText">Начать игру</span>
+                <div id="startButtonLoader" class="button-loader hidden"></div>
+            </button>
+            <p id="errorMessage" class="error-message hidden"></p>
         </div>
         
         <div id="gameOverScreen" class="screen hidden">
@@ -46,9 +49,11 @@
         <div id="pauseScreen" class="screen hidden">
             <h1 class="title">ПАУЗА</h1>
             <p class="subtitle">Собрано монет: <span id="pauseCoins">0</span>/<span id="pauseGoal">0</span></p>
-            <button id="resumeButton">Продолжить</button>
-            <button id="restartPauseButton">Начать заново</button>
-            <button id="mainMenuButton">Главное меню</button>
+            <div class="button-container">
+                <button id="resumeButton">Продолжить</button>
+                <button id="restartPauseButton">Начать заново</button>
+                <button id="mainMenuButton">Главное меню</button>
+            </div>
             <div class="volume-controls">
                 <label>Громкость музыки:</label>
                 <input type="range" id="musicVolume" min="0" max="1" step="0.1" value="0.6">

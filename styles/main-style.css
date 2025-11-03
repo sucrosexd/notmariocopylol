@@ -1,4 +1,4 @@
- * {
+* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -9,7 +9,7 @@
 }
 
 body {
-    font-family:'main';
+    font-family: 'main', 'Arial', sans-serif; /* Резервные шрифты для совместимости */
     background: linear-gradient(135deg, #1a1a2e, #16213e, #0f3460);
     color: white;
     display: flex;
@@ -34,6 +34,15 @@ body {
     display: block;
     width: 100%;
     height: 100%;
+    /* Оптимизация отображения пиксельной графики */
+    image-rendering: -moz-crisp-edges; 
+    image-rendering: -webkit-crisp-edges; 
+    image-rendering: pixelated; 
+    image-rendering: crisp-edges; 
+    /* Аппаратное ускорение для лучшей производительности */
+    transform: translateZ(0);
+    -webkit-transform: translateZ(0); 
+    -ms-transform: translateZ(0); 
 }
 
 .ui-overlay {
@@ -54,7 +63,7 @@ body {
     border-radius: 8px;
     font-size: 18px;
     font-weight: bold;
-    opacity: 70%;
+    opacity: 0.7;
 }
 
 .screen {
@@ -85,7 +94,7 @@ body {
 }
 
 button {
-    font-family: 'main';
+    font-family: 'main', 'Arial', sans-serif;
     background: linear-gradient(to bottom, #FF6B6B, #FF4757);
     border: none;
     padding: 20px 45px;
@@ -95,16 +104,34 @@ button {
     font-weight: bold;
     cursor: pointer;
     margin: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 200px;
+    text-align: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+    -webkit-transition: -webkit-transform 0.2s, box-shadow 0.2s; 
+    -moz-transition: transform 0.2s, box-shadow 0.2s; 
 }
 
 button:hover {
     transform: translateY(-3px);
+    -webkit-transform: translateY(-3px); 
+    -ms-transform: translateY(-3px);
     box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
-.hidden {
-    display: none;
+button:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+    transform: none;
+    -webkit-transform: none; 
 }
+
+.hidden {
+    display: none !important;
+}
+
 
 .gamepad-status {
     position: absolute;
@@ -151,24 +178,6 @@ button:hover {
     margin-bottom: 30px;
     font-size: 24px;
     color: #4ECDC4;
-}
-
-button {
-    font-family: 'main';
-    background: linear-gradient(to bottom, #FF6B6B, #FF4757);
-    border: none;
-    padding: 20px 45px;
-    border-radius: 50px;
-    color: white;
-    font-size: 20px;
-    font-weight: bold;
-    cursor: pointer;
-    margin: 10px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 200px;
-    text-align: center;
 }
 
 #startScreen button,
@@ -228,6 +237,16 @@ button {
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
 }
 
+.volume-controls input[type="range"]::-ms-thumb {
+    width: 20px;
+    height: 20px;
+    background: #4CAF50;
+    border-radius: 50%;
+    cursor: pointer;
+    border: 2px solid white;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+}
+
 .volume-controls input[type="range"]::-webkit-slider-track {
     height: 6px;
     background: rgba(255, 255, 255, 0.2);
@@ -241,10 +260,18 @@ button {
     border: none;
 }
 
+.volume-controls input[type="range"]::-ms-track {
+    height: 6px;
+    background: transparent;
+    border-color: transparent;
+    color: transparent;
+}
+
 /* Эффекты при наведении */
 .volume-controls input[type="range"]:hover::-webkit-slider-thumb {
     background: #45a049;
     transform: scale(1.1);
+    -webkit-transform: scale(1.1);
 }
 
 .volume-controls input[type="range"]:hover::-moz-range-thumb {
@@ -252,12 +279,20 @@ button {
     transform: scale(1.1);
 }
 
+.volume-controls input[type="range"]:hover::-ms-thumb {
+    background: #45a049;
+    transform: scale(1.1);
+}
+
+
 .black-bg {
     background: #000000 !important;
 }
 
-#preloadScreen .title {
-    animation: pulse 2s infinite;
+.error-message {
+    color: #ff6b6b;
+    margin-top: 10px;
+    font-size: 14px;
 }
 
 /* Индикатор загрузки на кнопке */
@@ -268,6 +303,7 @@ button {
     border-top: 2px solid white;
     border-radius: 50%;
     animation: spin 1s linear infinite;
+    -webkit-animation: spin 1s linear infinite; 
     margin-left: 10px;
 }
 
@@ -282,12 +318,29 @@ button {
 }
 
 /*Анимации*/
+#preloadScreen .title {
+    animation: pulse 2s infinite;
+    -webkit-animation: pulse 2s infinite; 
+}
+
 @keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+    0% { 
+        transform: rotate(0deg);
+        -webkit-transform: rotate(0deg); 
+    }
+    100% { 
+        transform: rotate(360deg);
+        -webkit-transform: rotate(360deg); 
+    }
 }
 
 @keyframes pulse {
+    0% { opacity: 0.7; }
+    50% { opacity: 1; }
+    100% { opacity: 0.7; }
+}
+
+@-webkit-keyframes pulse {
     0% { opacity: 0.7; }
     50% { opacity: 1; }
     100% { opacity: 0.7; }

@@ -20,6 +20,7 @@ const levelCoinsElement = document.getElementById("levelCoins");
 const pauseCoinsElement = document.getElementById("pauseCoins");
 const pauseGoalElement = document.getElementById("pauseGoal");
 const gamepadStatusElement = document.getElementById("gamepadStatus");
+const errorMessageElement = document.getElementById("errorMessage");
 
 // Элементы управления громкостью
 const musicVolumeSlider = document.getElementById("musicVolume");
@@ -70,6 +71,10 @@ let currentAnimation = 'idle';
 let animationFrame = 0;
 let animationTimer = 0;
 const ANIMATION_SPEED = 100; // ms между кадрами
+
+// DeltaTime для точной анимации
+let lastFrameTime = performance.now();
+let deltaTime = 0;
 
 // Размер уровня
 let levelWidth = 4800;
@@ -187,45 +192,30 @@ async function loadAllSounds() {
 
   const soundFiles = [
     // Музыка
-    {
-      name: "main_menu_theme",
-      url: "./Assets/Audio/Music/MainTheme/main_menu_theme.mp3",
-    },
-    {
-      name: "forest_theme", 
-      url: "./Assets/Audio/Music/MainTheme/forest_theme.mp3",
-    },
-    {
-      name: "level_complete",
-      url: "./Assets/Audio/Music/Levels/level_complete.mp3",
-    },
-    { name: "game_over", url: "./Assets/Audio/Music/Events/game_over.mp3" },
+    { name: "main_menu_theme", url: "assets/audio/music/mainTheme/main_menu_theme.mp3" },
+    { name: "forest_theme", url: "assets/audio/music/mainTheme/forest_theme.mp3"},
+    { name: "level_complete", url: "assets/audio/music/levels/level_complete.mp3" },
+    { name: "game_over", url: "assets/audio/music/events/game_over.mp3" },
 
     // SFX игрока
-    { name: "jump", url: "./Assets/Audio/SFX/Player/jump.mp3" },
-    { name: "jump_hit", url: "./Assets/Audio/SFX/Player/jump_hit.mp3" },
-    { name: "land", url: "./Assets/Audio/SFX/Player/land.mp3" },
-    {
-      name: "player_damage",
-      url: "./Assets/Audio/SFX/Player/player_damage.mp3",
-    },
-    { name: "player_death", url: "./Assets/Audio/SFX/Player/death.mp3" },
+    { name: "jump", url: "assets/audio/sfx/player/jump.mp3" },
+    { name: "jump_hit", url: "assets/audio/sfx/player/jump_hit.mp3" },
+    { name: "land", url: "assets/audio/sfx/player/land.mp3" },
+    { name: "player_damage", url: "assets/audio/sfx/player/player_damage.mp3" },
+    { name: "player_death", url: "assets/audio/sfx/player/death.mp3" },
 
     // SFX врагов
-    { name: "enemy_coin", url: "./Assets/Audio/SFX/Enemies/enemy_coin.mp3" },
-    {
-      name: "enemy_defeat",
-      url: "./Assets/Audio/SFX/Enemies/enemy_defeat.mp3",
-    },
-    { name: "enemy_attack", url: "./Assets/Audio/SFX/Enemies/enemy_hit.mp3" }, // пока не используется
+    { name: "enemy_coin", url: "assets/audio/sfx/enemies/enemy_coin.mp3" },
+    { name: "enemy_defeat", url: "assets/audio/sfx/enemies/enemy_defeat.mp3" },
+    { name: "enemy_attack", url: "assets/audio/sfx/enemies/enemy_hit.mp3" }, // пока не используется
 
     // SFX окружения
-    { name: "coin_1", url: "./Assets/Audio/SFX/Environment/coin_1.mp3" },
-    { name: "coin_2", url: "./Assets/Audio/SFX/Environment/coin_2.mp3" },
+    { name: "coin_1", url: "assets/audio/sfx/environment/coin_1.mp3" },
+    { name: "coin_2", url: "assets/audio/sfx/environment/coin_2.mp3" },
 
     // SFX UI
-    { name: "ui_click", url: "./Assets/Audio/SFX/UI/click.wav" },
-    { name: "ui_pause", url: "./Assets/Audio/SFX/UI/pause.mp3" },
+    { name: "ui_click", url: "assets/audio/sfx/ui/click.wav" },
+    { name: "ui_pause", url: "assets/audio/sfx/ui/pause.mp3" },
   ];
 
   await Promise.all(
@@ -235,37 +225,102 @@ async function loadAllSounds() {
 }
 
 // Загрузка анимаций персонажа
-function loadCharacterAnimations() {
-    return new Promise(async (resolve, reject) => {
-        try {
-            // Загружаем статичную позу
-            characterFrames.idle = await loadImage('../assets/animations/character static.svg');
-            
-            // Загружаем кадры бега
-            characterFrames.run = [
-                await loadImage('../assets/animations/character running 1.svg'),
-                await loadImage('../assets/animations/character running 2.svg'),
-                await loadImage('../assets/animations/character running 3.svg')
-            ];
-            
-            console.log('Анимации персонажа загружены!');
-            resolve();
-        } catch (error) {
-            console.error('Ошибка загрузки анимаций:', error);
-            reject(error);
-        }
-    });
+async function loadCharacterAnimations() {
+    console.log("Начинаем загрузку анимаций персонажа...");
+    
+    try {
+        // Пытаемся загрузить анимации
+        const idlePromise = loadImage('assets/animations/characters/ninja/ninja_static.svg')
+            .catch(err => {
+                console.warn("ninja_static - Ошибка загрузка");
+                return createFallbackImage(80, 120, '#4ECDC4');
+            });
+        
+        const run1Promise = loadImage('assets/animations/characters/ninja/ninja_running_1.svg')
+            .catch(err => {
+                console.log('ninja_running_1 - Ошибка загрузка');
+                return createFallbackImage(80, 120, '#FF6B6B');
+            });
+        const run2Promise = loadImage('assets/animations/characters/ninja/ninja_running_2.svg')
+            .catch(err => {
+                console.log('ninja_running_2 - Ошибка загрузка');
+                return createFallbackImage(80, 120, '#FF8C94');
+            });
+        const run3Promise = loadImage('assets/animations/characters/ninja/ninja_running_3.svg')
+            .catch(err => {
+                console.log('ninja_running_3 - Ошибка загрузка');
+                return createFallbackImage(80, 120, '#FFAAB0');
+            });
+        characterFrames.idle = await idlePromise;
+        characterFrames.run = await Promise.all([run1Promise, run2Promise, run3Promise]);
+        
+        console.log("Анимации персонажа загружены!");
+        console.log(`  - Idle: ${characterFrames.idle ? 'OK' : 'FAIL'}`);
+        console.log(`  - Run frames: ${characterFrames.run.length}/3`);
+        
+        return true;
+    } catch (error) {
+        console.error("Критическая ошибка загрузки анимаций:", error);
+        // Создаем фоллбэк для всех анимаций
+        characterFrames.idle = createFallbackImage(80, 120, '#4ECDC4');
+        characterFrames.run = [
+            createFallbackImage(80, 120, '#FF6B6B'),
+            createFallbackImage(80, 120, '#FF8C94'),
+            createFallbackImage(80, 120, '#FFAAB0')
+        ];
+        return true;
+    }
+}
+
+// Создание фоллбэк изображения
+function createFallbackImage(width, height, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    
+    // Рисуем простого ниндзя
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Голова
+    ctx.fillStyle = '#2C3E50';
+    ctx.fillRect(width * 0.25, height * 0.1, width * 0.5, height * 0.3);
+    
+    // Глаза
+    ctx.fillStyle = 'white';
+    ctx.fillRect(width * 0.3, height * 0.2, width * 0.15, height * 0.1);
+    ctx.fillRect(width * 0.55, height * 0.2, width * 0.15, height * 0.1);
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
 }
 
 // Вспомогательная функция загрузки изображения
 function loadImage(src) {
     return new Promise((resolve, reject) => {
         const img = new Image();
-        img.onload = () => resolve(img);
+        let timeoutId;
+        
+        img.onload = () => {
+            clearTimeout(timeoutId);
+            console.log(`Загружено: ${src}`);
+            resolve(img);
+        };
+        
         img.onerror = () => {
-            console.error(`Ошибка загрузки изображения: ${src}`);
+            clearTimeout(timeoutId);
+            console.error(`Ошибка загрузки: ${src}`);
             reject(new Error(`Не удалось загрузить ${src}`));
         };
+        
+        // Таймаут 10 секунд
+        timeoutId = setTimeout(() => {
+            console.error(`Таймаут загрузки: ${src}`);
+            reject(new Error(`Таймаут загрузки ${src}`));
+        }, 10000);
+        
         img.src = src;
     });
 }
@@ -404,24 +459,66 @@ function loadSVG(id, src) {
 
 // ОБНОВЛЕННАЯ ЗАГРУЗКА ВСЕХ SVG С УЛУЧШЕННОЙ ОБРАБОТКОЙ ОШИБОК
 async function loadAllSVGs() {
-  try {
-    console.log("Начало загрузки SVG...");
+    console.log("Начинаем загрузку SVG...");
     
-    const loadPromises = [
-      loadSVG("background", "./assets/images/backgrounds/forest/forest-1.svg"),
-      loadSVG("coin", "./assets/images/elements/coin.svg"),
-      loadSVG("flag", "./assets/images/elements/flag.svg"),
-      loadSVG("flagDisabled", "./assets/images/elements/flag-disabled.svg"),
+    const svgFiles = [
+        { id: 'background', path: 'assets/images/backgrounds/forest/forest-1.svg' },
+        { id: 'coin', path: 'assets/images/elements/coin.svg' },
+        { id: 'flag', path: 'assets/images/elements/flag.svg' },
+        { id: 'flagDisabled', path: 'assets/images/elements/flag-disabled.svg' }
     ];
-
-    // Загружаем все параллельно с улучшенной обработкой ошибок
-    await Promise.all(loadPromises);
-    console.log("Все SVG изображения загружены успешно");
+    
+    for (const file of svgFiles) {
+        try {
+            svgImages[file.id] = await loadImage(file.path);
+        } catch (error) {
+            console.warn(`Используем фоллбэк для ${file.id}`);
+            svgImages[file.id] = createFallbackSVG(file.id);
+        }
+    }
+    
+    console.log("SVG загружены!");
     return true;
-  } catch (error) {
-    console.error("Ошибка при загрузке SVG:", error);
-    throw error;
-  }
+}
+
+
+function createFallbackSVG(id) {
+    const canvas = document.createElement('canvas');
+    const ctx = canvas.getContext('2d');
+    
+    switch(id) {
+        case 'coin':
+            canvas.width = canvas.height = 30;
+            ctx.fillStyle = '#FFD700';
+            ctx.beginPath();
+            ctx.arc(15, 15, 12, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+        case 'flag':
+            canvas.width = 60;
+            canvas.height = 100;
+            ctx.fillStyle = '#00FF00';
+            ctx.fillRect(0, 0, 60, 100);
+            break;
+        case 'flagDisabled':
+            canvas.width = 60;
+            canvas.height = 100;
+            ctx.fillStyle = '#666666';
+            ctx.fillRect(0, 0, 60, 100);
+            break;
+        default:
+            canvas.width = 800;
+            canvas.height = 600;
+            const gradient = ctx.createLinearGradient(0, 0, 0, 600);
+            gradient.addColorStop(0, '#87CEEB');
+            gradient.addColorStop(1, '#0066CC');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, 800, 600);
+    }
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
 }
 
 // Игровые объекты
@@ -1205,10 +1302,8 @@ function drawCharacter() {
     
     if (currentAnimation === 'run' && characterFrames.run.length > 0) {
         currentFrame = characterFrames.run[animationFrame];
-        console.log(`Отрисовка кадра бега: ${animationFrame + 1}/3`);
     } else {
         currentFrame = characterFrames.idle;
-        console.log("Отрисовка статичной позы");
     }
     
     if (!currentFrame) {
@@ -1222,14 +1317,13 @@ function drawCharacter() {
     // Эффект мигания при уроне
     if (damageFlashTimer > 0) {
         ctx.globalAlpha = 0.5;
-        console.log("Применен эффект мигания");
+        console.log("Игрок получил урон");
     }
     
     // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
     const drawX = player.x;
     const drawY = player.y;
     
-    console.log(`Отрисовка персонажа: мир(${player.x}, ${player.y}) камера(${camera.x}, ${camera.y})`);
     
     // Отражаем если смотрит влево
     if (player.direction === -1) {
@@ -1243,8 +1337,6 @@ function drawCharacter() {
     
     // Восстанавливаем контекст
     ctx.restore();
-    
-    console.log("Персонаж отрисован успешно");
 }
 
 // Обновление анимации монет
@@ -1745,7 +1837,6 @@ function updatePlayerAnimation() {
         if (Math.abs(leftStickX) > 0.1) {
             isGamepadMoving = true;
             gamepadDirection = leftStickX > 0 ? 1 : -1;
-            console.log(`Движение геймпада: стик=${leftStickX.toFixed(2)}, направление=${gamepadDirection}`);
         }
     }
     
@@ -1768,11 +1859,10 @@ function updatePlayerAnimation() {
         }
         
         // Обновляем анимацию
-        animationTimer += 16.67; // deltaTime для 60fps
+        animationTimer += deltaTime;
         if (animationTimer >= ANIMATION_SPEED) {
             animationTimer = 0;
             animationFrame = (animationFrame + 1) % characterFrames.run.length;
-            console.log(`Смена кадра анимации: ${animationFrame + 1}/${characterFrames.run.length}`);
         }
     } else {
         currentAnimation = 'idle';
@@ -1780,8 +1870,8 @@ function updatePlayerAnimation() {
         animationTimer = 0;
     }
     
-    console.log(`Состояние анимации: ${currentAnimation}, кадр: ${animationFrame}, grounded: ${player.grounded}`);
 }
+
 
 // Обработка ввода с клавиатуры
 function handleKeyboardInput() {
@@ -1819,14 +1909,6 @@ function handleKeyboardInput() {
     attackCooldown = 25;
   }
 
-  // Прыжок (сенсорный или клавиатура)
-  if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && player.grounded) {
-    player.velY = -18;
-    player.jumping = true;
-    player.grounded = false;
-    playSound("jump", 0.6);
-  }
-
   // Способность спускаться по платформам
   downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
 
@@ -1840,6 +1922,10 @@ function handleKeyboardInput() {
 // Обновление игровой логики
 function update() {
   updatePlayerAnimation();
+  // Вычисляем deltaTime
+  const currentTime = performance.now();
+  deltaTime = currentTime - lastFrameTime;
+  lastFrameTime = currentTime;
 
   // Если игра в состоянии preload или menu, не обновляем игровую логику 
   if (gameState === "preload" || gameState === "menu") {
@@ -2201,9 +2287,10 @@ startButton.addEventListener("click", async () => {
         console.error("Ошибка загрузки игры:", error);
         // Восстанавливаем кнопку при ошибке
         resetStartButton();
-        
-        // Показываем сообщение об ошибке пользователю
-        alert("Произошла ошибка при загрузке игры. Пожалуйста, попробуйте еще раз.");
+        if (errorMessageElement) {
+        errorMessageElement.textContent = "Ошибка загрузки. Попробуйте обновить страницу.";
+        errorMessageElement.classList.remove("hidden");
+      }
     }
 });
 
@@ -2214,6 +2301,7 @@ restartButton.addEventListener("click", () => {
   lives = 150;
   coins = 0;
   level = 1;
+  player.speed = 8; 
   gameState = "playing";
   // СКРЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ РЕСТАРТЕ (ОНИ ПОКАЖУТСЯ В init())
   const uiOverlay = document.querySelector('.ui-overlay');
@@ -2271,6 +2359,7 @@ restartPauseButton.addEventListener("click", () => {
   lives = 150;
   coins = 0;
   level = 1;
+  player.speed = 8; 
   gameState = "playing";
   // СКРЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ РЕСТАРТЕ (ОНИ ПОКАЖУТСЯ В init())
   const uiOverlay = document.querySelector('.ui-overlay');
@@ -2331,7 +2420,7 @@ window.addEventListener("resize", resizeCanvas);
 setInterval(handleGamepad, 100);
 
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
-Promise.all([9,
+Promise.all([
   loadAllSVGs(),
   enableGameAudio()
 ])
