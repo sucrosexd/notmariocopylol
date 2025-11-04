@@ -50,10 +50,13 @@ let keys = {};
 let pauseKeyPressed = false;
 let downKeyPressed = false;
 
-// Анимационные переменные для кота
+// Анимационные переменные для ниндзи
 let isFacingRight = true;
 let isAttacking = false;
+const ATTACK_DURATION = 15; // длительность анимации атаки в кадрах
 let attackCooldown = 0;
+let attackProcessed = false;
+let gamepadAttackProcessed = false;
 let animationTime = 0;
 
 // Система получения урона
@@ -62,10 +65,20 @@ let invulnerabilityTimer = 0;
 const INVULNERABILITY_DURATION = 180; // 3 секунды при 60 FPS
 let damageFlashTimer = 0;
 
+let savedMovement = {
+    left: false,
+    right: false,
+    gamepadX: 0
+};
+
 // Система анимации персонажа
 let characterFrames = {
     idle: null,
-    run: []
+    run: [],
+    jump: [],
+    fall: null,         // отдельная анимация падения
+    attack: null,       // удар в статике
+    jump_attack: null   // удар в прыжке 
 };
 let currentAnimation = 'idle';
 let animationFrame = 0;
@@ -229,34 +242,79 @@ async function loadCharacterAnimations() {
     console.log("Начинаем загрузку анимаций персонажа...");
     
     try {
-        // Пытаемся загрузить анимации
-        const idlePromise = loadImage('assets/animations/characters/ninja/ninja_static.svg')
+        // Загрузка idle и run анимаций
+        const idlePromise = loadImage('assets/animations/characters/ninja/running/ninja_static.svg')
             .catch(err => {
-                console.warn("ninja_static - Ошибка загрузка");
+                console.warn("ninja_static - Ошибка загрузки");
                 return createFallbackImage(80, 120, '#4ECDC4');
             });
         
-        const run1Promise = loadImage('assets/animations/characters/ninja/ninja_running_1.svg')
+        const run1Promise = loadImage('assets/animations/characters/ninja/running/ninja_running_1.svg')
             .catch(err => {
-                console.log('ninja_running_1 - Ошибка загрузка');
+                console.log('ninja_running_1 - Ошибка загрузки');
                 return createFallbackImage(80, 120, '#FF6B6B');
             });
-        const run2Promise = loadImage('assets/animations/characters/ninja/ninja_running_2.svg')
+        const run2Promise = loadImage('assets/animations/characters/ninja/running/ninja_running_2.svg')
             .catch(err => {
-                console.log('ninja_running_2 - Ошибка загрузка');
+                console.log('ninja_running_2 - Ошибка загрузки');
                 return createFallbackImage(80, 120, '#FF8C94');
             });
-        const run3Promise = loadImage('assets/animations/characters/ninja/ninja_running_3.svg')
+        const run3Promise = loadImage('assets/animations/characters/ninja/running/ninja_running_3.svg')
             .catch(err => {
-                console.log('ninja_running_3 - Ошибка загрузка');
+                console.log('ninja_running_3 - Ошибка загрузки');
                 return createFallbackImage(80, 120, '#FFAAB0');
             });
+
+        // Анимации прыжка (2 кадра)
+        const jump1Promise = loadImage('assets/animations/characters/ninja/jumping/ninja_jump.svg')
+            .catch(err => {
+                console.log('ninja_jump - Ошибка загрузки');
+                return createFallbackImage(80, 120, '#45B7D1');
+            });
+        
+        const kolobokPromise = loadImage('assets/animations/characters/ninja/jumping/ninja_kolobok.svg')
+            .catch(err => {
+                console.log('ninja_kolobok - Ошибка загрузки');
+                return createFallbackImage(80, 120, '#4ECDC4');
+            });
+            
+        // Анимация падения
+        const fallPromise = loadImage('assets/animations/characters/ninja/jumping/ninja_fall.svg')
+            .catch(err => {
+                console.log('ninja_fall - Ошибка загрузки');
+                return createFallbackImage(80, 120, '#96CEB4');
+            });
+
+        // ЗАГРУЗКА АНИМАЦИЙ АТАКИ
+        const attackPromise = loadImage('assets/animations/characters/ninja/attacking/ninja_afk_attack.svg')
+            .catch(err => {
+                console.log('ninja_afk_attack - Ошибка загрузки');
+                return createFallbackImage(80, 120, '#FF0000');
+            });
+            
+        const jumpAttackPromise = loadImage('assets/animations/characters/ninja/attacking/ninja_jump_attack.svg')
+            .catch(err => {
+                console.log('ninja_jump_attack - Ошибка загрузки');
+                return createFallbackImage(80, 120, '#FF0000');
+            });
+
+        // Ждем загрузку всех анимаций
         characterFrames.idle = await idlePromise;
         characterFrames.run = await Promise.all([run1Promise, run2Promise, run3Promise]);
+        characterFrames.jump = await Promise.all([jump1Promise, kolobokPromise]);
+        characterFrames.fall = await fallPromise;
         
-        console.log("Анимации персонажа загружены!");
+        // ЗАГРУЖАЕМ АНИМАЦИИ АТАКИ
+        characterFrames.attack = await attackPromise;
+        characterFrames.jump_attack = await jumpAttackPromise;
+        
+        console.log("Все анимации загружены!");
         console.log(`  - Idle: ${characterFrames.idle ? 'OK' : 'FAIL'}`);
         console.log(`  - Run frames: ${characterFrames.run.length}/3`);
+        console.log(`  - Jump frames: ${characterFrames.jump.length}/2`);
+        console.log(`  - Fall: ${characterFrames.fall ? 'OK' : 'FAIL'}`);
+        console.log(`  - Attack: ${characterFrames.attack ? 'OK' : 'FAIL'}`);
+        console.log(`  - Jump Attack: ${characterFrames.jump_attack ? 'OK' : 'FAIL'}`);
         
         return true;
     } catch (error) {
@@ -268,6 +326,13 @@ async function loadCharacterAnimations() {
             createFallbackImage(80, 120, '#FF8C94'),
             createFallbackImage(80, 120, '#FFAAB0')
         ];
+        characterFrames.jump = [
+            createFallbackImage(80, 120, '#45B7D1'),
+            createFallbackImage(80, 120, '#4ECDC4')
+        ];
+        characterFrames.fall = createFallbackImage(80, 120, '#96CEB4');
+        characterFrames.attack = createFallbackImage(80, 120, '#FF0000');
+        characterFrames.jump_attack = createFallbackImage(80, 120, '#FF0000');
         return true;
     }
 }
@@ -1300,39 +1365,95 @@ function drawSVGPart(id, x, y, width, height, rotation) {
 function drawCharacter() {
     let currentFrame;
     
+    // БАЗОВЫЕ РАЗМЕРЫ
+    let drawWidth = player.width;
+    let drawHeight = player.height;
+
+    // ВЫБОР КАДРА ПО ТИПУ АНИМАЦИИ + ИНДИВИДУАЛЬНЫЕ НАСТРОЙКИ МАСШТАБА
     if (currentAnimation === 'run' && characterFrames.run.length > 0) {
         currentFrame = characterFrames.run[animationFrame];
+        // Бег - стандартный размер
+        
+    } else if (currentAnimation === 'jump' && characterFrames.jump.length > 0) {
+        currentFrame = characterFrames.jump[animationFrame];
+        
+        // ИНДИВИДУАЛЬНЫЙ МАСШТАБ ДЛЯ КАЖДОГО КАДРА ПРЫЖКА
+        if (animationFrame === 0) {
+            // ninja_jump - УВЕЛИЧИВАЕМ
+            drawWidth = player.width * 1.3;
+            drawHeight = player.height * 1.3;
+        } else if (animationFrame === 1) {
+            // ninja_kolobok - УМЕНЬШАЕМ
+            drawWidth = player.width * 0.7;
+            drawHeight = player.height * 0.7;
+        }
+        
+    } else if (currentAnimation === 'fall' && characterFrames.fall) {
+        currentFrame = characterFrames.fall;
+        // ninja_fall - УВЕЛИЧИВАЕМ
+        drawWidth = player.width * 1.3;
+        drawHeight = player.height * 1.3;
+        
+    } else if (currentAnimation === 'attack' && characterFrames.attack) {
+        currentFrame = characterFrames.attack;
+        // Атака в статике - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
+        drawWidth = player.width * 3.0;
+        drawHeight = player.height;
+        
+    } else if (currentAnimation === 'jump_attack' && characterFrames.jump_attack) {
+        currentFrame = characterFrames.jump_attack;
+        // Атака в прыжке - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
+        drawWidth = player.width * 3.0;
+        drawHeight = player.height;
+        
     } else {
         currentFrame = characterFrames.idle;
+        // Покой - стандартный размер
     }
-    
+
     if (!currentFrame) {
         console.error("Анимации не загружены!");
         return;
     }
-    
-    // Сохраняем контекст
+
+    // Отрисовка
     ctx.save();
     
     // Эффект мигания при уроне
     if (damageFlashTimer > 0) {
         ctx.globalAlpha = 0.5;
-        console.log("Игрок получил урон");
     }
     
     // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
     const drawX = player.x;
     const drawY = player.y;
     
+    // Корректировка позиции для сохранения центра при изменении размера
+    let adjustedX = drawX;
+    let adjustedY = drawY;
     
-    // Отражаем если смотрит влево
+    if (currentAnimation === 'jump') {
+        if (animationFrame === 0 || animationFrame === 1) {
+            adjustedX = drawX - (drawWidth - player.width) / 2;
+            adjustedY = drawY - (drawHeight - player.height) / 2;
+        }
+    } else if (currentAnimation === 'fall') {
+        adjustedX = drawX - (drawWidth - player.width) / 2;
+        adjustedY = drawY - (drawHeight - player.height) / 2;
+    } else if (currentAnimation === 'attack' || currentAnimation === 'jump_attack') {
+        // ДОБАВЛЯЕМ КОРРЕКТИРОВКУ ДЛЯ АНИМАЦИЙ АТАКИ
+        adjustedX = drawX - (drawWidth - player.width) / 2;
+        adjustedY = drawY;
+    }
+    
+    // Отражаем если смотрит влево - ИСПОЛЬЗУЕМ ИСХОДНУЮ ЛОГИКУ БЕЗ ТЕЛЕПОРТАЦИИ
     if (player.direction === -1) {
-        ctx.translate(drawX + player.width, drawY);
+        ctx.translate(adjustedX + drawWidth, adjustedY);
         ctx.scale(-1, 1);
-        ctx.drawImage(currentFrame, 0, 0, player.width, player.height);
+        ctx.drawImage(currentFrame, 0, 0, drawWidth, drawHeight);
     } else {
         // Смотрит вправо - рисуем как есть
-        ctx.drawImage(currentFrame, drawX, drawY, player.width, player.height);
+        ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
     }
     
     // Восстанавливаем контекст
@@ -1823,6 +1944,20 @@ function updateDamageSystem() {
 
 // Обновление анимации персонажа
 function updatePlayerAnimation() {
+    // АТАКА - САМЫЙ ВЫСОКИЙ ПРИОРИТЕТ (прерывает все другие анимации)
+    if (isAttacking) {
+        if (!player.grounded) {
+            // Удар в прыжке
+            currentAnimation = 'jump_attack';
+        } else {
+            // Удар на земле
+            currentAnimation = 'attack';
+        }
+        animationFrame = 0;
+        animationTimer = 0;
+        return; // ВАЖНО: прерываем выполнение функции здесь
+    }
+    
     // Проверяем движение с клавиатуры
     const isMovingRight = keys["ArrowRight"] || keys["KeyD"];
     const isMovingLeft = keys["ArrowLeft"] || keys["KeyA"];
@@ -1833,8 +1968,7 @@ function updatePlayerAnimation() {
     
     if (isGamepadConnected && gamepad) {
         const leftStickX = gamepad.axes[0];
-        // Dead zone для устранения дрейфа
-        if (Math.abs(leftStickX) > 0.1) {
+        if (Math.abs(leftStickX) > 0.15) {
             isGamepadMoving = true;
             gamepadDirection = leftStickX > 0 ? 1 : -1;
         }
@@ -1843,7 +1977,25 @@ function updatePlayerAnimation() {
     // Объединяем ввод с клавиатуры и геймпада
     const isMoving = (isMovingRight || isMovingLeft || isGamepadMoving) && player.grounded;
     
-    if (isMoving) {
+    // 1. ПАДЕНИЕ
+    if (!player.grounded && player.velY > 0) {
+        currentAnimation = 'fall';
+        animationFrame = 0;
+        animationTimer = 0;
+    } 
+    // 2. ПРЫЖОК
+    else if (!player.grounded && player.velY <= 0) {
+        currentAnimation = 'jump';
+        
+        if (player.velY < -5) {
+            animationFrame = 0; // взлет
+        } else {
+            animationFrame = 1; // пик прыжка (колобок)
+        }
+        animationTimer = 0;
+    } 
+    // 3. БЕГ
+    else if (isMoving) {
         currentAnimation = 'run';
         
         // Обновляем направление в зависимости от ввода
@@ -1858,333 +2010,358 @@ function updatePlayerAnimation() {
             isFacingRight = gamepadDirection > 0;
         }
         
-        // Обновляем анимацию
+        // Обновляем анимацию бега
         animationTimer += deltaTime;
         if (animationTimer >= ANIMATION_SPEED) {
             animationTimer = 0;
             animationFrame = (animationFrame + 1) % characterFrames.run.length;
         }
-    } else {
+    } 
+    // 4. ПОКОЙ
+    else {
         currentAnimation = 'idle';
         animationFrame = 0;
         animationTimer = 0;
     }
-    
 }
 
+function startAttack() {
+    isAttacking = true;
+    attackCooldown = ATTACK_DURATION;
+    
+    // НЕМЕДЛЕННО ОСТАНАВЛИВАЕМ ДВИЖЕНИЕ ПРИ НАЧАЛЕ АТАКИ
+    player.velX = 0;
+    
+    playSound("enemy_attack", 0.7);
+    console.log("Атака запущена! Движение остановлено.");
+}
 
 // Обработка ввода с клавиатуры
 function handleKeyboardInput() {
-  // Определяем направление
-  if (keys["ArrowLeft"] || keys["KeyA"]) {
-    player.velX = -player.speed;
-    player.direction = -1;
+    // Сохраняем состояние движения ДО проверки атаки
+    savedMovement.left = keys["ArrowLeft"] || keys["KeyA"];
+    savedMovement.right = keys["ArrowRight"] || keys["KeyD"];
 
-    if (player.grounded && Math.random() > 0.7) {
-      playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+    // ЕСЛИ ПЕРСОНАЖ АТАКУЕТ - БЛОКИРУЕМ ДВИЖЕНИЕ
+    if (isAttacking) {
+        player.velX = 0;
+        return; // Прерываем обработку движения
     }
-  } else if (keys["ArrowRight"] || keys["KeyD"]) {
-    player.velX = player.speed;
-    player.direction = 1;
 
-    if (player.grounded && Math.random() > 0.7) {
-      playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+    // Определяем направление (только если не атакуем)
+    if (savedMovement.left) {
+        player.velX = -player.speed;
+        player.direction = -1;
+    } else if (savedMovement.right) {
+        player.velX = player.speed;
+        player.direction = 1;
+    } else {
+        player.velX = 0;
     }
-  }
 
-  // Прыжок
-  if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && player.grounded) {
-    player.velY = -18;
-    player.jumping = true;
-    player.grounded = false;
-    playSound("jump", 0.6);
-  }
+    // Прыжок с клавиатуры (работает даже во время атаки)
+    if ((keys["ArrowUp"] || keys["KeyW"] || keys["Space"]) && player.grounded) {
+        player.velY = -18;
+        player.jumping = true;
+        player.grounded = false;
+        playSound("jump", 0.6);
+    }
 
-  // Способность спускаться по платформам (стрелка вниз или S)
-  downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
+    // Способность спускаться по платформам
+    downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
 
-  // Атака (X или F)
-  if ((keys["KeyX"] || keys["KeyF"]) && !isAttacking && attackCooldown <= 0) {
-    isAttacking = true;
-    attackCooldown = 25;
-  }
-
-  // Способность спускаться по платформам
-  downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
-
-  // Атака (сенсорная или клавиатура)
-  if ((keys["KeyX"] || keys["KeyF"]) && !isAttacking && attackCooldown <= 0) {
-    isAttacking = true;
-    attackCooldown = 25;
-  }
+    // АТАКА (X или F) - ТОЛЬКО ПРИ НОВОМ НАЖАТИИ
+    const attackPressed = keys["KeyX"] || keys["KeyF"];
+    
+    if (attackPressed && !isAttacking && attackCooldown <= 0) {
+        if (!attackProcessed) {
+            startAttack();
+            attackProcessed = true;
+        }
+    } else if (!attackPressed) {
+        // Сбрасываем флаг когда кнопка отпущена
+        attackProcessed = false;
+    }
 }
 
-// Обновление игровой логики
-function update() {
-  updatePlayerAnimation();
-  // Вычисляем deltaTime
-  const currentTime = performance.now();
-  deltaTime = currentTime - lastFrameTime;
-  lastFrameTime = currentTime;
+// НОВАЯ ФУНКЦИЯ: Обработка ввода с геймпада
+function handleGamepadInput() {
+    if (!isGamepadConnected || !gamepad) return;
 
-  // Если игра в состоянии preload или menu, не обновляем игровую логику 
-  if (gameState === "preload" || gameState === "menu") {
-    return;
-  }
-
-  // Обработка паузы - добавляем сенсорную кнопку паузы если нужно
-  let pausePressed = keys["Escape"] || keys["KeyP"];
-
-  // Проверяем паузу на геймпаде
-  if (isGamepadConnected && gamepad && gamepad.buttons[9].pressed) {
-    pausePressed = true;
-  }
-
-  if (pausePressed && !pauseKeyPressed) {
-    // Переключаем состояние паузы
-    if (gameState === "playing") {
-      gameState = "paused";
-      pauseScreen.classList.remove("hidden");
-      // Обновляем информацию в меню паузы
-      pauseCoinsElement.textContent = coinsCollectedInLevel;
-      pauseGoalElement.textContent = coinsToWin;
-      console.log("Игра на паузе");
-
-      playSound("ui_pause", 0.5);
-
-      updateMusicVolume();
-    } else if (gameState === "paused") {
-      gameState = "playing";
-      pauseScreen.classList.add("hidden");
-      console.log("Игра продолжена");
-
-      playSound("ui_click", 0.4);
-
-      updateMusicVolume();
-    }
-    pauseKeyPressed = true;
-  }
-
-  // Сбрасываем флаг паузы, когда все клавиши/кнопки отпущены
-  const keyboardPauseReleased = !keys["Escape"] && !keys["KeyP"];
-  const gamepadPauseReleased =
-    !isGamepadConnected || !gamepad || !gamepad.buttons[9].pressed;
-
-  if (keyboardPauseReleased && gamepadPauseReleased) {
-    pauseKeyPressed = false;
-  }
-
-  // Обновление системы урона (всегда, даже в паузе для анимации)
-  updateDamageSystem();
-
-  // Если игра не в состоянии playing, не обновляем игровую логику
-  if (gameState !== "playing") return;
-
-  // Обновление времени анимации
-  animationTime += 0.1;
-
-  // Обновление анимации монет
-  updateCoinAnimations();
-
-  // Обновление врагов
-  updateEnemies();
-
-  // Обновление атаки
-  if (isAttacking) {
-    attackCooldown--;
-    if (attackCooldown <= 0) {
-      isAttacking = false;
-    }
-  }
-
-  // Обновление камеры
-  updateCamera();
-
-  // Применение гравитации
-  player.velY += gravity;
-
-  // Применение трения при движении по земле
-  if (player.grounded) {
-    player.velX *= friction;
-  }
-
-  // Обработка ввода с клавиатуры
-  handleKeyboardInput();
-
-  // Обработка ввода с геймпада
-  if (isGamepadConnected && gamepad) {
+    // Сохраняем состояние движения геймпада
     const leftStickX = gamepad.axes[0];
-    if (Math.abs(leftStickX) > 0.1) {
-      player.velX = leftStickX * player.speed;
-      player.direction = leftStickX > 0 ? 1 : -1;
+    savedMovement.gamepadX = leftStickX;
 
-      if (player.grounded && Math.random() > 0.7) {
-        playSound("move", 0.3, 1.0 + Math.random() * 0.2);
-      }
+    // ЕСЛИ ПЕРСОНАЖ АТАКУЕТ - БЛОКИРУЕМ ДВИЖЕНИЕ
+    if (isAttacking) {
+        player.velX = 0;
+        // Но продолжаем обрабатывать остальные действия
+    } else {
+        // ДВИЖЕНИЕ (только если не атакуем)
+        if (Math.abs(leftStickX) > 0.15) {
+            player.velX = leftStickX * player.speed;
+            player.direction = leftStickX > 0 ? 1 : -1;
+            
+            if (player.grounded && Math.random() > 0.7) {
+                playSound("move", 0.3, 1.0 + Math.random() * 0.2);
+            }
+        } else {
+            player.velX = 0;
+        }
     }
 
-    // Проверяем кнопку для спуска (обычно кнопка вниз на крестовине или левый стик вниз)
+    // ПРЫЖОК С ГЕЙМПАДА (работает даже во время атаки)
+    if (gamepad.buttons[0].pressed && player.grounded && !player.jumping) {
+        player.velY = -18;
+        player.jumping = true;
+        player.grounded = false;
+        playSound("jump", 0.6);
+        
+        setTimeout(() => {
+            player.jumping = false;
+        }, 300);
+    }
+
+    // Альтернативные кнопки для прыжка
+    if ((gamepad.buttons[2].pressed || gamepad.buttons[7].pressed) && player.grounded && !player.jumping) {
+        player.velY = -18;
+        player.jumping = true;
+        player.grounded = false;
+        playSound("jump", 0.6);
+        
+        setTimeout(() => {
+            player.jumping = false;
+        }, 300);
+    }
+
+    // СПУСК ПО ПЛАТФОРМАМ
     const leftStickY = gamepad.axes[1];
     downKeyPressed = gamepad.buttons[13]?.pressed || leftStickY > 0.5;
 
-    if (gamepad.buttons[0].pressed && player.grounded) {
-      player.velY = -18;
-      player.jumping = true;
-      player.grounded = false;
-      playSound("jump", 0.6);
+    // АТАКА С ГЕЙМПАДА
+    const gamepadAttackPressed = gamepad.buttons[2].pressed || gamepad.buttons[5].pressed;
+    
+    if (gamepadAttackPressed && !isAttacking && attackCooldown <= 0) {
+        if (!gamepadAttackProcessed) {
+            startAttack();
+            gamepadAttackProcessed = true;
+        }
+    } else if (!gamepadAttackPressed) {
+        gamepadAttackProcessed = false;
+    }
+}
+
+// Обновление игровой логики
+// Обновление игровой логики
+function update() {
+    updatePlayerAnimation();
+    
+    // Вычисляем deltaTime
+    const currentTime = performance.now();
+    deltaTime = currentTime - lastFrameTime;
+    lastFrameTime = currentTime;
+
+    if (gameState === "preload" || gameState === "menu") {
+        return;
     }
 
-    // Атака с геймпада (кнопка X)
-    if (gamepad.buttons[3].pressed && !isAttacking && attackCooldown <= 0) {
-      isAttacking = true;
-      attackCooldown = 25;
+    // Обновление системы урона
+    updateDamageSystem();
+
+    if (gameState !== "playing") return;
+
+    // Обновление времени анимации
+    animationTime += 0.1;
+
+    // Обновление анимации монет
+    updateCoinAnimations();
+
+    // Обновление врагов
+    updateEnemies();
+
+    // ОБНОВЛЕНИЕ АТАКИ И ВОССТАНОВЛЕНИЕ ДВИЖЕНИЯ ПОСЛЕ АТАКИ
+    if (isAttacking) {
+        attackCooldown--;
+        if (attackCooldown <= 0) {
+            isAttacking = false;
+            console.log("Атака завершена! Движение восстановлено.");
+            
+            // ВОССТАНАВЛИВАЕМ ДВИЖЕНИЕ ПОСЛЕ АТАКИ
+            // Проверяем сохраненное состояние клавиатуры
+            if (savedMovement.left) {
+                player.velX = -player.speed;
+                player.direction = -1;
+            } else if (savedMovement.right) {
+                player.velX = player.speed;
+                player.direction = 1;
+            }
+            
+            // Проверяем сохраненное состояние геймпада
+            if (Math.abs(savedMovement.gamepadX) > 0.15) {
+                player.velX = savedMovement.gamepadX * player.speed;
+                player.direction = savedMovement.gamepadX > 0 ? 1 : -1;
+            }
+        }
+        
+        // Блокируем обработку ввода во время атаки
+        attackProcessed = true;
+        gamepadAttackProcessed = true;
+    } else if (!isAttacking && attackCooldown <= 0) {
+        // Разблокируем обработку ввода когда атака завершена
+        attackProcessed = false;
+        gamepadAttackProcessed = false;
     }
-  }
 
-  // Обновление позиции игрока
-  player.x += player.velX;
-  player.y += player.velY;
+    // Обновление камеры
+    updateCamera();
 
-  if (!player.lastGroundedState && player.grounded) {
-    playSound("land", 0.4);
-  }
-  player.lastGroundedState = player.grounded;
+    // Применение гравитации
+    player.velY += gravity;
 
-  if (player.x < 0) player.x = 0;
-  if (player.x + player.width > levelWidth)
-    player.x = levelWidth - player.width;
-  if (player.y > levelHeight) {
-    player.y = 800;
-    player.x = 100;
-    takeDamage();
-  }
-
-  // Сброс grounded статуса
-  player.grounded = false;
-
-  // Проверка столкновений с платформами
-  for (let platform of platforms) {
-    if (
-      player.x < platform.x + platform.width &&
-      player.x + player.width > platform.x &&
-      player.y + player.height > platform.y &&
-      player.y + player.height < platform.y + platform.height &&
-      player.velY > 0
-    ) {
-      // Если нажата кнопка вниз, позволяем игроку пройти сквозь платформу
-      // НО ИСКЛЮЧАЕМ ОСНОВНОЙ ПОЛ (самый нижний уровень)
-      if (
-        downKeyPressed &&
-        platform.y < levelHeight - 50 &&
-        (keys["ArrowDown"] ||
-          keys["KeyS"] ||
-          (isGamepadConnected &&
-            (gamepad.buttons[13]?.pressed || gamepad.axes[1] > 0.5)))
-      ) {
-        // Пропускаем эту платформу - игрок может пройти сквозь нее
-        continue;
-      }
-
-      player.y = platform.y - player.height;
-      player.velY = 0;
-      player.grounded = true;
-      player.jumping = false;
+    // Применение трения при движении по земле (только если не атакуем)
+    if (player.grounded && !isAttacking) {
+        player.velX *= friction;
     }
-  }
 
-  // Проверка сбора монет
-  for (let coin of coinsList) {
-    if (
-      !coin.collected &&
-      player.x < coin.x + coin.width &&
-      player.x + player.width > coin.x &&
-      player.y < coin.originalY + coin.bounceOffset + coin.height &&
-      player.y + player.height > coin.originalY + coin.bounceOffset
-    ) {
-      coin.collected = true;
-      coins++;
-      coinsCollectedInLevel++;
-      coinCountElement.textContent = coins;
-      updateLevelGoalDisplay();
+    // Обработка ввода с клавиатуры и геймпада
+    handleKeyboardInput();
+    handleGamepadInput();
 
-      if (coin.isHighCoin) {
-        playSound("coin_2", 0.6);
-      } else {
-        playSound("coin_1", 0.5);
-      }
+    // Обновление позиции игрока
+    player.x += player.velX;
+    player.y += player.velY;
+
+    // Звук приземления
+    if (!player.lastGroundedState && player.grounded) {
+        playSound("land", 0.4);
     }
-  }
+    player.lastGroundedState = player.grounded;
 
-  // Проверка столкновения с врагами
-  for (let i = enemies.length - 1; i >= 0; i--) {
-    let enemy = enemies[i];
-    if (
-      player.x < enemy.x + enemy.width &&
-      player.x + player.width > enemy.x &&
-      player.y < enemy.y + enemy.height &&
-      player.y + player.height > enemy.y
-    ) {
-      // Проверка атаки на бронированных врагов
-      if (isAttacking && enemy.type === "armored") {
-        enemies.splice(i, 1);
-        player.velY = -8; // небольшой отскок при убийстве атакой
-
-        coins += 3;
-        coinsCollectedInLevel += 3;
-        coinCountElement.textContent = coins;
-        updateLevelGoalDisplay();
-
-        playSound("enemy_defeat", 0.8);
-        playSound("enemy_coin", 0.6);
-      }
-      // Обычные враги (уязвимы к прыжкам)
-      else if (
-        player.velY > 0 &&
-        player.y + player.height < enemy.y + enemy.height / 2 &&
-        !enemy.isArmored // Бронированные неуязвимы к прыжкам
-      ) {
-        enemies.splice(i, 1);
-        player.velY = -12;
-
-        coins += 2;
-        coinsCollectedInLevel += 2;
-        coinCountElement.textContent = coins;
-        updateLevelGoalDisplay();
-
-        playSound("jump_hit", 0.7);
-        playSound("enemy_defeat", 0.6);
-        playSound("enemy_coin", 0.5);
-      }
-      // Бронированные враги при прыжке на них - отскакиваем без убийства
-      else if (
-        player.velY > 0 &&
-        player.y + player.height < enemy.y + enemy.height / 2 &&
-        enemy.isArmored
-      ) {
-        player.velY = -10; // отскок от бронированного врага
-        playSound("jump_hit", 0.5);
-      } else if (!isInvulnerable) {
-        playSound("enemy_attack", 0.6);
+    // Ограничения уровня
+    if (player.x < 0) player.x = 0;
+    if (player.x + player.width > levelWidth) player.x = levelWidth - player.width;
+    if (player.y > levelHeight) {
+        player.y = 800;
+        player.x = 100;
         takeDamage();
-      }
     }
-  }
 
-  // Проверка достижения флага (только если собрано достаточно монет)
-  if (
-    coinsCollectedInLevel >= coinsToWin &&
-    player.x < flag.x + flag.width &&
-    player.x + player.width > flag.x &&
-    player.y < flag.y + flag.height &&
-    player.y + player.height > flag.y
-  ) {
-    gameState = "levelComplete";
-    levelCompleteScreen.classList.remove("hidden");
-    levelCoinsElement.textContent = coinsCollectedInLevel;
+    // Сброс grounded статуса
+    player.grounded = false;
 
-    stopMusic();
-    playMusic("level_complete", false, 0.8);
-  }
+    // Проверка столкновений с платформами
+    for (let platform of platforms) {
+        if (
+            player.x < platform.x + platform.width &&
+            player.x + player.width > platform.x &&
+            player.y + player.height > platform.y &&
+            player.y + player.height < platform.y + platform.height &&
+            player.velY > 0
+        ) {
+            if (downKeyPressed && platform.y < levelHeight - 50) {
+                continue;
+            }
+
+            player.y = platform.y - player.height;
+            player.velY = 0;
+            player.grounded = true;
+            player.jumping = false;
+        }
+    }
+
+    // Проверка сбора монет
+    for (let coin of coinsList) {
+        if (
+            !coin.collected &&
+            player.x < coin.x + coin.width &&
+            player.x + player.width > coin.x &&
+            player.y < coin.originalY + coin.bounceOffset + coin.height &&
+            player.y + player.height > coin.originalY + coin.bounceOffset
+        ) {
+            coin.collected = true;
+            coins++;
+            coinsCollectedInLevel++;
+            coinCountElement.textContent = coins;
+            updateLevelGoalDisplay();
+
+            if (coin.isHighCoin) {
+                playSound("coin_2", 0.6);
+            } else {
+                playSound("coin_1", 0.5);
+            }
+        }
+    }
+
+    // Проверка столкновения с врагами
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        let enemy = enemies[i];
+        if (
+            player.x < enemy.x + enemy.width &&
+            player.x + player.width > enemy.x &&
+            player.y < enemy.y + enemy.height &&
+            player.y + player.height > enemy.y
+        ) {
+            // Проверка атаки на бронированных врагов
+            if (isAttacking && enemy.type === "armored") {
+                enemies.splice(i, 1);
+                player.velY = -8; // небольшой отскок при убийстве атакой
+
+                coins += 3;
+                coinsCollectedInLevel += 3;
+                coinCountElement.textContent = coins;
+                updateLevelGoalDisplay();
+
+                playSound("enemy_defeat", 0.8);
+                playSound("enemy_coin", 0.6);
+            }
+            // Обычные враги (уязвимы к прыжкам)
+            else if (
+                player.velY > 0 &&
+                player.y + player.height < enemy.y + enemy.height / 2 &&
+                !enemy.isArmored // Бронированные неуязвимы к прыжкам
+            ) {
+                enemies.splice(i, 1);
+                player.velY = -12;
+
+                coins += 2;
+                coinsCollectedInLevel += 2;
+                coinCountElement.textContent = coins;
+                updateLevelGoalDisplay();
+
+                playSound("jump_hit", 0.7);
+                playSound("enemy_defeat", 0.6);
+                playSound("enemy_coin", 0.5);
+            }
+            // Бронированные враги при прыжке на них - отскакиваем без убийства
+            else if (
+                player.velY > 0 &&
+                player.y + player.height < enemy.y + enemy.height / 2 &&
+                enemy.isArmored
+            ) {
+                player.velY = -10; // отскок от бронированного врага
+                playSound("jump_hit", 0.5);
+            } else if (!isInvulnerable) {
+                playSound("enemy_attack", 0.6);
+                takeDamage();
+            }
+        }
+    }
+
+    // Проверка достижения флага
+    if (
+        coinsCollectedInLevel >= coinsToWin &&
+        player.x < flag.x + flag.width &&
+        player.x + player.width > flag.x &&
+        player.y < flag.y + flag.height &&
+        player.y + player.height > flag.y
+    ) {
+        gameState = "levelComplete";
+        levelCompleteScreen.classList.remove("hidden");
+        levelCoinsElement.textContent = coinsCollectedInLevel;
+
+        stopMusic();
+        playMusic("level_complete", false, 0.8);
+    }
 }
 
 // Игровой цикл
