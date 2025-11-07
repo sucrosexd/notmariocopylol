@@ -71,8 +71,8 @@ let savedMovement = {
     gamepadX: 0
 };
 
-// Система анимации персонажа
-let characterFrames = {
+// Система анимации ниндзи
+let ninjaFrames = {
     idle: null,
     run: [],
     jump: [],
@@ -80,6 +80,7 @@ let characterFrames = {
     attack: null,       // удар в статике
     jump_attack: null   // удар в прыжке 
 };
+
 let currentAnimation = 'idle';
 let animationFrame = 0;
 let animationTimer = 0;
@@ -88,6 +89,18 @@ const ANIMATION_SPEED = 100; // ms между кадрами
 // DeltaTime для точной анимации
 let lastFrameTime = performance.now();
 let deltaTime = 0;
+
+// Система анимации врагов
+let enemyFrames = {
+    standard1: [],
+    standard2: [],
+    jumper: [],
+    fast: [],
+    flying: [],
+    armored: []
+};
+
+let enemyAnimations = {}; // Хранит текущее состояние анимации для каждого врага
 
 // Размер уровня
 let levelWidth = 4800;
@@ -299,40 +312,40 @@ async function loadCharacterAnimations() {
             });
 
         // Ждем загрузку всех анимаций
-        characterFrames.idle = await idlePromise;
-        characterFrames.run = await Promise.all([run1Promise, run2Promise, run3Promise]);
-        characterFrames.jump = await Promise.all([jump1Promise, kolobokPromise]);
-        characterFrames.fall = await fallPromise;
+        ninjaFrames.idle = await idlePromise;
+        ninjaFrames.run = await Promise.all([run1Promise, run2Promise, run3Promise]);
+        ninjaFrames.jump = await Promise.all([jump1Promise, kolobokPromise]);
+        ninjaFrames.fall = await fallPromise;
         
         // ЗАГРУЖАЕМ АНИМАЦИИ АТАКИ
-        characterFrames.attack = await attackPromise;
-        characterFrames.jump_attack = await jumpAttackPromise;
+        ninjaFrames.attack = await attackPromise;
+        ninjaFrames.jump_attack = await jumpAttackPromise;
         
         console.log("Все анимации загружены!");
-        console.log(`  - Idle: ${characterFrames.idle ? 'OK' : 'FAIL'}`);
-        console.log(`  - Run frames: ${characterFrames.run.length}/3`);
-        console.log(`  - Jump frames: ${characterFrames.jump.length}/2`);
-        console.log(`  - Fall: ${characterFrames.fall ? 'OK' : 'FAIL'}`);
-        console.log(`  - Attack: ${characterFrames.attack ? 'OK' : 'FAIL'}`);
-        console.log(`  - Jump Attack: ${characterFrames.jump_attack ? 'OK' : 'FAIL'}`);
+        console.log(`  - Idle: ${ninjaFrames.idle ? 'OK' : 'FAIL'}`);
+        console.log(`  - Run frames: ${ninjaFrames.run.length}/3`);
+        console.log(`  - Jump frames: ${ninjaFrames.jump.length}/2`);
+        console.log(`  - Fall: ${ninjaFrames.fall ? 'OK' : 'FAIL'}`);
+        console.log(`  - Attack: ${ninjaFrames.attack ? 'OK' : 'FAIL'}`);
+        console.log(`  - Jump Attack: ${ninjaFrames.jump_attack ? 'OK' : 'FAIL'}`);
         
         return true;
     } catch (error) {
         console.error("Критическая ошибка загрузки анимаций:", error);
         // Создаем фоллбэк для всех анимаций
-        characterFrames.idle = createFallbackImage(80, 120, '#4ECDC4');
-        characterFrames.run = [
+        ninjaFrames.idle = createFallbackImage(80, 120, '#4ECDC4');
+        ninjaFrames.run = [
             createFallbackImage(80, 120, '#FF6B6B'),
             createFallbackImage(80, 120, '#FF8C94'),
             createFallbackImage(80, 120, '#FFAAB0')
         ];
-        characterFrames.jump = [
+        ninjaFrames.jump = [
             createFallbackImage(80, 120, '#45B7D1'),
             createFallbackImage(80, 120, '#4ECDC4')
         ];
-        characterFrames.fall = createFallbackImage(80, 120, '#96CEB4');
-        characterFrames.attack = createFallbackImage(80, 120, '#FF0000');
-        characterFrames.jump_attack = createFallbackImage(80, 120, '#FF0000');
+        ninjaFrames.fall = createFallbackImage(80, 120, '#96CEB4');
+        ninjaFrames.attack = createFallbackImage(80, 120, '#FF0000');
+        ninjaFrames.jump_attack = createFallbackImage(80, 120, '#FF0000');
         return true;
     }
 }
@@ -360,6 +373,101 @@ function createFallbackImage(width, height, color) {
     const img = new Image();
     img.src = canvas.toDataURL();
     return img;
+}
+
+// Загрузка анимаций врагов
+async function loadEnemyAnimations() {
+    console.log("Начинаем загрузку анимаций врагов...");
+    
+    try {
+        // Загрузка анимаций для стандартного врага 1
+        const standard1Frame1 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame1.svg')
+            .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
+        const standard1Frame2 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame2.svg')
+            .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
+        
+        enemyFrames.standard1 = [standard1Frame1, standard1Frame2];
+        
+        console.log("Анимации стандартного врага 1 загружены!");
+        return true;
+    } catch (error) {
+        console.error("Ошибка загрузки анимаций врагов:", error);
+        // Создаем фоллбэк анимации
+        enemyFrames.standard1 = [
+            createFallbackEnemyImage(60, 60, '#8E44AD'),
+            createFallbackEnemyImage(60, 60, '#9B59B6')
+        ];
+        return true;
+    }
+}
+
+// Создание фоллбэк изображения для врага
+function createFallbackEnemyImage(width, height, color) {
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    
+    // Рисуем простого врага
+    ctx.fillStyle = color;
+    ctx.fillRect(0, 0, width, height);
+    
+    // Глаза
+    ctx.fillStyle = 'white';
+    ctx.fillRect(width * 0.2, height * 0.3, width * 0.15, height * 0.15);
+    ctx.fillRect(width * 0.65, height * 0.3, width * 0.15, height * 0.15);
+    
+    ctx.fillStyle = 'black';
+    ctx.fillRect(width * 0.23, height * 0.33, width * 0.09, height * 0.09);
+    ctx.fillRect(width * 0.68, height * 0.33, width * 0.09, height * 0.09);
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
+}
+
+// Инициализация анимации для врага
+function initEnemyAnimation(enemy) {
+    const enemyId = enemies.indexOf(enemy);
+    enemyAnimations[enemyId] = {
+        currentFrame: 0,
+        animationTimer: 0,
+        animationSpeed: 200, // ms между кадрами
+        direction: enemy.direction
+    };
+}
+
+// Обновление анимации врагов
+function updateEnemyAnimations() {
+    const currentTime = performance.now();
+    
+    for (let i = 0; i < enemies.length; i++) {
+        const enemy = enemies[i];
+        const anim = enemyAnimations[i];
+        
+        if (!anim) {
+            initEnemyAnimation(enemy);
+            continue;
+        }
+        
+        // Обновляем направление анимации в соответствии с направлением движения
+        if (anim.direction !== enemy.direction) {
+            anim.direction = enemy.direction;
+        }
+        
+        // Обновляем анимацию только для движущихся врагов
+        if (enemy.speed > 0 && !enemy.isStuck) {
+            anim.animationTimer += deltaTime;
+            
+            if (anim.animationTimer >= anim.animationSpeed) {
+                anim.animationTimer = 0;
+                anim.currentFrame = (anim.currentFrame + 1) % 2; // 2 кадра анимации
+            }
+        } else {
+            // Если враг не двигается, показываем первый кадр
+            anim.currentFrame = 0;
+        }
+    }
 }
 
 // Вспомогательная функция загрузки изображения
@@ -917,6 +1025,7 @@ function createEnemies() {
         startX: enemyX,
         color: "#8E44AD",
         type: "ground",
+        enemyType: "standard1"
       });
     }
   }
@@ -1370,12 +1479,12 @@ function drawCharacter() {
     let drawHeight = player.height;
 
     // ВЫБОР КАДРА ПО ТИПУ АНИМАЦИИ + ИНДИВИДУАЛЬНЫЕ НАСТРОЙКИ МАСШТАБА
-    if (currentAnimation === 'run' && characterFrames.run.length > 0) {
-        currentFrame = characterFrames.run[animationFrame];
+    if (currentAnimation === 'run' && ninjaFrames.run.length > 0) {
+        currentFrame = ninjaFrames.run[animationFrame];
         // Бег - стандартный размер
         
-    } else if (currentAnimation === 'jump' && characterFrames.jump.length > 0) {
-        currentFrame = characterFrames.jump[animationFrame];
+    } else if (currentAnimation === 'jump' && ninjaFrames.jump.length > 0) {
+        currentFrame = ninjaFrames.jump[animationFrame];
         
         // ИНДИВИДУАЛЬНЫЙ МАСШТАБ ДЛЯ КАЖДОГО КАДРА ПРЫЖКА
         if (animationFrame === 0) {
@@ -1388,26 +1497,26 @@ function drawCharacter() {
             drawHeight = player.height * 0.7;
         }
         
-    } else if (currentAnimation === 'fall' && characterFrames.fall) {
-        currentFrame = characterFrames.fall;
+    } else if (currentAnimation === 'fall' && ninjaFrames.fall) {
+        currentFrame = ninjaFrames.fall;
         // ninja_fall - УВЕЛИЧИВАЕМ
         drawWidth = player.width * 1.3;
         drawHeight = player.height * 1.3;
         
-    } else if (currentAnimation === 'attack' && characterFrames.attack) {
-        currentFrame = characterFrames.attack;
+    } else if (currentAnimation === 'attack' && ninjaFrames.attack) {
+        currentFrame = ninjaFrames.attack;
         // Атака в статике - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
         drawWidth = player.width * 3.0;
         drawHeight = player.height;
         
-    } else if (currentAnimation === 'jump_attack' && characterFrames.jump_attack) {
-        currentFrame = characterFrames.jump_attack;
+    } else if (currentAnimation === 'jump_attack' && ninjaFrames.jump_attack) {
+        currentFrame = ninjaFrames.jump_attack;
         // Атака в прыжке - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
         drawWidth = player.width * 3.0;
         drawHeight = player.height;
         
     } else {
-        currentFrame = characterFrames.idle;
+        currentFrame = ninjaFrames.idle;
         // Покой - стандартный размер
     }
 
@@ -1633,10 +1742,6 @@ function draw() {
 
   // Рисование фона
   if (svgImages.background) {
-    // старый метод
-    // const pattern = ctx.createPattern(svgImages.background, "repeat");
-    // ctx.fillStyle = pattern;
-    // ctx.fillRect(camera.x, camera.y, levelWidth, levelHeight);
     const bgImg = svgImages.background;
     const bgAspectRatio = bgImg.width / bgImg.height;
     const bgHeight = levelHeight;
@@ -1798,12 +1903,50 @@ function draw() {
       }
       // НАЗЕМНЫЕ ВРАГИ
       else {
-        ctx.fillStyle = enemy.color;
-        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+        // Используем анимацию для стандартных врагов
+        if (enemy.enemyType === "standard1" && enemyFrames.standard1.length > 0) {
+          const anim = enemyAnimations[enemies.indexOf(enemy)];
+          const frameIndex = anim ? anim.currentFrame : 0;
+          const currentFrame = enemyFrames.standard1[frameIndex];
+          
+          // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
+          let drawWidth = enemy.width * 1.5; // Ширина 1.5
+          let drawHeight = enemy.height * 2.0; // Высота 2.0
+          
+          // Корректировка позиции
+          let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
+          let adjustedY = enemy.y - (drawHeight - enemy.height) - 20; // Поднимаем на 20px
+          
+          // Отрисовка с анимацией - ИСПРАВЛЕННАЯ ЛОГИКА ОТРАЖЕНИЯ (ПРОТИВОПОЛОЖНЫЕ СТОРОНЫ)
+          ctx.save();
+          if (enemy.direction === 1) {
+            // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
+            ctx.translate(adjustedX + drawWidth / 2, adjustedY);
+            ctx.scale(-1, 1);
+            ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+          } else {
+            // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
+            ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+          }
+          ctx.restore();
+        } else {
+          // Старая отрисовка как запасной вариант
+          ctx.fillStyle = enemy.color;
+          ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+          
+          ctx.fillStyle = "white";
+          ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
+          ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
+
+          ctx.fillStyle = "black";
+          ctx.fillRect(enemy.x + 11, enemy.y + 18, 6, 6);
+          ctx.fillRect(enemy.x + enemy.width - 17, enemy.y + 18, 6, 6);
+        }
       }
 
       // Глаза для всех врагов (кроме бронированных, у которых глаза уже нарисованы)
-      if (enemy.type !== "armored") {
+      // И для врагов с анимацией, у которых глаза уже встроены в SVG
+      if (enemy.type !== "armored" && enemy.enemyType !== "standard1") {
         ctx.fillStyle = "white";
         ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
         ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
@@ -2014,7 +2157,7 @@ function updatePlayerAnimation() {
         animationTimer += deltaTime;
         if (animationTimer >= ANIMATION_SPEED) {
             animationTimer = 0;
-            animationFrame = (animationFrame + 1) % characterFrames.run.length;
+            animationFrame = (animationFrame + 1) % ninjaFrames.run.length;
         }
     } 
     // 4. ПОКОЙ
@@ -2216,6 +2359,9 @@ function update() {
 
     // Обновление анимации монет
     updateCoinAnimations();
+
+    // Обновление анимации врагов
+    updateEnemyAnimations();
 
     // Обновление врагов
     updateEnemies();
@@ -2640,7 +2786,8 @@ setInterval(handleGamepad, 100);
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
 Promise.all([
   loadAllSVGs(),
-  enableGameAudio()
+  enableGameAudio(),
+  loadEnemyAnimations()
 ])
 .then(() => {
   console.log("Все ресурсы загружены, ожидаем пользователя...");
