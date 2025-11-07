@@ -2152,25 +2152,66 @@ function handleGamepadInput() {
 }
 
 // Обновление игровой логики
-// Обновление игровой логики
 function update() {
-    updatePlayerAnimation();
-    
     // Вычисляем deltaTime
     const currentTime = performance.now();
     deltaTime = currentTime - lastFrameTime;
     lastFrameTime = currentTime;
 
+    // Если игра в состоянии preload или menu, не обновляем игровую логику 
     if (gameState === "preload" || gameState === "menu") {
         return;
     }
 
-    // Обновление системы урона
+    // Обработка паузы - добавляем сенсорную кнопку паузы если нужно
+    let pausePressed = keys["Escape"] || keys["KeyP"];
+
+    // Проверяем паузу на геймпаде
+    if (isGamepadConnected && gamepad && gamepad.buttons[9].pressed) {
+        pausePressed = true;
+    }
+
+    if (pausePressed && !pauseKeyPressed) {
+        // Переключаем состояние паузы
+        if (gameState === "playing") {
+            gameState = "paused";
+            pauseScreen.classList.remove("hidden");
+            // Обновляем информацию в меню паузы
+            pauseCoinsElement.textContent = coinsCollectedInLevel;
+            pauseGoalElement.textContent = coinsToWin;
+            console.log("Игра на паузе");
+
+            playSound("ui_pause", 0.5);
+            updateMusicVolume();
+        } else if (gameState === "paused") {
+            gameState = "playing";
+            pauseScreen.classList.add("hidden");
+            console.log("Игра продолжена");
+
+            playSound("ui_click", 0.4);
+            updateMusicVolume();
+        }
+        pauseKeyPressed = true;
+    }
+
+    // Сбрасываем флаг паузы, когда все клавиши/кнопки отпущены
+    const keyboardPauseReleased = !keys["Escape"] && !keys["KeyP"];
+    const gamepadPauseReleased = !isGamepadConnected || !gamepad || !gamepad.buttons[9].pressed;
+
+    if (keyboardPauseReleased && gamepadPauseReleased) {
+        pauseKeyPressed = false;
+    }
+
+    // Обновление системы урона (всегда, даже в паузе для анимации)
     updateDamageSystem();
 
+    // Если игра не в состоянии playing, не обновляем игровую логику
     if (gameState !== "playing") return;
 
-    // Обновление времени анимации
+    // Обновление анимации персонажа (использует deltaTime)
+    updatePlayerAnimation();
+    
+    // Обновление времени анимации (декоративное, можно оставить)
     animationTime += 0.1;
 
     // Обновление анимации монет
