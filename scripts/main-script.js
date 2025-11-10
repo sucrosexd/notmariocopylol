@@ -432,7 +432,7 @@ async function loadEnemyAnimations() {
         
         enemyFrames.standard2 = [standard2Frame1, standard2Frame2];
         
-        // ✅ ДОБАВЛЯЕМ АНИМАЦИИ ДЛЯ ПРЫГУНОВ
+        // Анимации для прыгунов
         const jumperFrame1 = await loadImage('assets/animations/characters/enemies/enemy_jumper/jumper_frame1.svg')
             .catch(err => createFallbackEnemyImage(45, 45, '#D35400'));
         const jumperFrame2 = await loadImage('assets/animations/characters/enemies/enemy_jumper/jumper_frame2.svg')
@@ -440,7 +440,15 @@ async function loadEnemyAnimations() {
         
         enemyFrames.jumper = [jumperFrame1, jumperFrame2];
         
-        console.log("Анимации врагов загружены: стандартные 1, стандартные 2, прыгуны!");
+        // ✅ ДОБАВЛЯЕМ АНИМАЦИИ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
+        const flyingFrame1 = await loadImage('assets/animations/characters/enemies/enemy_flying/flying_frame1.svg')
+            .catch(err => createFallbackEnemyImage(50, 50, '#9B59B6'));
+        const flyingFrame2 = await loadImage('assets/animations/characters/enemies/enemy_flying/flying_frame2.svg')
+            .catch(err => createFallbackEnemyImage(50, 50, '#9B59B6'));
+        
+        enemyFrames.flying = [flyingFrame1, flyingFrame2];
+        
+        console.log("Анимации врагов загружены: стандартные 1, стандартные 2, прыгуны, летающие!");
         return true;
     } catch (error) {
         console.error("Ошибка загрузки анимаций врагов:", error);
@@ -457,6 +465,11 @@ async function loadEnemyAnimations() {
         enemyFrames.jumper = [
             createFallbackEnemyImage(45, 45, '#D35400'),
             createFallbackEnemyImage(45, 45, '#E67E22')
+        ];
+        // ✅ ФОЛЛБЭК ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
+        enemyFrames.flying = [
+            createFallbackEnemyImage(50, 50, '#9B59B6'),
+            createFallbackEnemyImage(50, 50, '#8E44AD')
         ];
         return true;
     }
@@ -1191,7 +1204,7 @@ function createEnemies() {
         isFlying: true,
         color: "#9B59B6",
         type: "flying",
-        enemyType: "flying", // ✅ ДОБАВИМ ТИП АНИМАЦИИ (пока нет анимации)
+        enemyType: "flying", // ✅ ДОБАВИМ ТИП АНИМАЦИИ
         verticalSpeed: 0.4 + Math.random() * 0.3,
         verticalRange: 60 + Math.random() * 50,
         heightTier: heightTier,
@@ -1942,15 +1955,31 @@ function draw() {
         ctx.fill();
       }
       // ЛЕТАЮЩИЕ ВРАГИ
-      else if (enemy.isFlying) {
-        ctx.fillStyle = enemy.color;
-        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-
-        // Крылья с анимацией
-        ctx.fillStyle = "#8E44AD";
-        const wingY = enemy.y - 8 + Math.sin(animationTime * 8) * 4;
-        ctx.fillRect(enemy.x - 12, wingY, 12, 6);
-        ctx.fillRect(enemy.x + enemy.width, wingY, 12, 6);
+      else if (enemy.type === "flying" && enemyFrames.flying.length > 0) {
+        const anim = enemyAnimations[enemies.indexOf(enemy)];
+        const frameIndex = anim ? anim.currentFrame : 0;
+        const currentFrame = enemyFrames.flying[frameIndex];
+        
+        // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
+        let drawWidth = enemy.width * 1.6;
+        let drawHeight = enemy.height * 1.6;
+        
+        // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
+        let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
+        let adjustedY = enemy.y - (drawHeight - enemy.height) / 2;
+        
+        // Отрисовка с анимацией
+        ctx.save();
+        if (enemy.direction === 1) {
+          // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
+          ctx.translate(adjustedX + drawWidth / 2, adjustedY);
+          ctx.scale(-1, 1);
+          ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+        } else {
+          // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
+          ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+        }
+        ctx.restore();
       }
       // ВРАГИ-ПРЫГУНЫ
       else if (enemy.type === "jumping" && enemyFrames.jumper.length > 0) {
@@ -1997,7 +2026,7 @@ function draw() {
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ТОЛЬКО ДЛЯ PLATFORM ВРАГОВ (МЕНЬШЕЕ СМЕЩЕНИЕ)
         let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
-        let adjustedY = enemy.y - (drawHeight - enemy.height) - 0; // УМЕНЬШЕНО С 20 ДО 5
+        let adjustedY = enemy.y - (drawHeight - enemy.height) - 0; // УМЕНЬШЕНО С 20 ДО 0
         
         // Отрисовка с анимацией
         ctx.save();
@@ -2019,7 +2048,7 @@ function draw() {
         const currentFrame = enemyFrames.standard1[frameIndex];
         
         // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
-        let drawWidth = enemy.width * 1.3;
+        let drawWidth = enemy.width * 1.5;
         let drawHeight = enemy.height * 2.0;
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ НАЗЕМНЫХ ВРАГОВ ОСТАВЛЯЕМ ПРЕЖНЕЕ СМЕЩЕНИЕ
@@ -2055,7 +2084,7 @@ function draw() {
 
       // Глаза для всех врагов (кроме бронированных, у которых глаза уже нарисованы)
       // И для врагов с анимацией, у которых глаза уже встроены в SVG
-      if (enemy.type !== "armored" && enemy.enemyType !== "standard1" && enemy.enemyType !== "standard2" && enemy.type !== "jumping") {
+      if (enemy.type !== "armored" && enemy.enemyType !== "standard1" && enemy.enemyType !== "standard2" && enemy.type !== "jumping" && enemy.type !== "flying") {
         ctx.fillStyle = "white";
         ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
         ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
