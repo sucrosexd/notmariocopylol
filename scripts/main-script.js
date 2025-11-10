@@ -448,7 +448,7 @@ async function loadEnemyAnimations() {
         
         enemyFrames.flying = [flyingFrame1, flyingFrame2];
         
-        // ✅ ДОБАВЛЯЕМ АНИМАЦИИ ДЛЯ БЫСТРЫХ ВРАГОВ (БЕГУНОВ)
+        // Анимации для быстрых врагов (бегунов)
         const runnerFrame1 = await loadImage('assets/animations/characters/enemies/enemy_runner/runner_frame1.svg')
             .catch(err => createFallbackEnemyImage(45, 45, '#C0392B'));
         const runnerFrame2 = await loadImage('assets/animations/characters/enemies/enemy_runner/runner_frame2.svg')
@@ -456,7 +456,15 @@ async function loadEnemyAnimations() {
         
         enemyFrames.runner = [runnerFrame1, runnerFrame2];
         
-        console.log("Анимации врагов загружены: стандартные 1, стандартные 2, прыгуны, летающие, бегуны!");
+        // ✅ ДОБАВЛЯЕМ АНИМАЦИИ ДЛЯ БРОНИРОВАННЫХ ВРАГОВ
+        const armoredFrame1 = await loadImage('assets/animations/characters/enemies/enemy_armored/armored_frame1.svg')
+            .catch(err => createFallbackEnemyImage(70, 70, '#34495E'));
+        const armoredFrame2 = await loadImage('assets/animations/characters/enemies/enemy_armored/armored_frame2.svg')
+            .catch(err => createFallbackEnemyImage(70, 70, '#34495E'));
+        
+        enemyFrames.armored = [armoredFrame1, armoredFrame2];
+        
+        console.log("Анимации врагов загружены: стандартные 1, стандартные 2, прыгуны, летающие, бегуны, бронированные!");
         return true;
     } catch (error) {
         console.error("Ошибка загрузки анимаций врагов:", error);
@@ -477,10 +485,14 @@ async function loadEnemyAnimations() {
             createFallbackEnemyImage(50, 50, '#9B59B6'),
             createFallbackEnemyImage(50, 50, '#8E44AD')
         ];
-        // ✅ ФОЛЛБЭК ДЛЯ БЫСТРЫХ ВРАГОВ
         enemyFrames.runner = [
             createFallbackEnemyImage(45, 45, '#C0392B'),
             createFallbackEnemyImage(45, 45, '#E74C3C')
+        ];
+        // ✅ ФОЛЛБЭК ДЛЯ БРОНИРОВАННЫХ ВРАГОВ
+        enemyFrames.armored = [
+            createFallbackEnemyImage(70, 70, '#34495E'),
+            createFallbackEnemyImage(70, 70, '#2C3E50')
         ];
         return true;
     }
@@ -1945,47 +1957,33 @@ function draw() {
       // Разные стили для разных типов врагов
 
       // БРОНИРОВАННЫЕ ВРАГИ
-      if (enemy.type === "armored") {
-        ctx.fillStyle = enemy.color;
-        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-
-        // Внутренняя броня (темнее основного цвета)
-        ctx.fillStyle = "#2C3E50";
-        ctx.fillRect(
-          enemy.x + 8,
-          enemy.y + 8,
-          enemy.width - 16,
-          enemy.height - 16,
-        );
-
-        // Детали брони
-        ctx.fillStyle = "#7F8C8D";
-        // Бронепластины
-        ctx.fillRect(enemy.x + 12, enemy.y + 12, enemy.width - 24, 6);
-        ctx.fillRect(
-          enemy.x + 12,
-          enemy.y + enemy.height - 18,
-          enemy.width - 24,
-          6,
-        );
-        ctx.fillRect(enemy.x + 12, enemy.y + 25, 6, enemy.height - 50);
-        ctx.fillRect(
-          enemy.x + enemy.width - 18,
-          enemy.y + 25,
-          6,
-          enemy.height - 50,
-        );
-
-        // Глаза
-        ctx.fillStyle = "white";
-        ctx.fillRect(enemy.x + 20, enemy.y + 25, 10, 10);
-        ctx.fillRect(enemy.x + enemy.width - 30, enemy.y + 25, 10, 10);
-
-        ctx.fillStyle = "red";
-        ctx.fillRect(enemy.x + 23, enemy.y + 28, 4, 4);
-        ctx.fillRect(enemy.x + enemy.width - 27, enemy.y + 28, 4, 4);
-
-        // Индикатор брони (щит)
+      if (enemy.type === "armored" && enemyFrames.armored && enemyFrames.armored.length > 0) {
+        const anim = enemyAnimations[enemies.indexOf(enemy)];
+        const frameIndex = anim ? anim.currentFrame : 0;
+        const currentFrame = enemyFrames.armored[frameIndex];
+        
+        // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ БРОНИРОВАННЫХ ВРАГОВ
+        let drawWidth = enemy.width * 1.8;
+        let drawHeight = enemy.height * 1.8;
+        
+        // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ БРОНИРОВАННЫХ ВРАГОВ
+        let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
+        let adjustedY = enemy.y - (drawHeight - enemy.height) - 0;
+        
+        // Отрисовка с анимацией
+        ctx.save();
+        if (enemy.direction === 1) {
+          // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
+          ctx.translate(adjustedX + drawWidth / 2, adjustedY);
+          ctx.scale(-1, 1);
+          ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+        } else {
+          // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
+          ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+        }
+        ctx.restore();
+        
+        // Индикатор брони (щит) - оставляем как визуальный эффект
         ctx.fillStyle = "#E74C3C";
         ctx.beginPath();
         ctx.moveTo(enemy.x + enemy.width / 2, enemy.y - 5);
@@ -2054,7 +2052,7 @@ function draw() {
           ctx.fillRect(enemy.x + enemy.width / 2 - 2, enemy.y - 8, 4, 4);
         }
       }
-        // БЫСТРЫЕ ВРАГИ (БЕГУНЫ)
+      // БЫСТРЫЕ ВРАГИ (БЕГУНЫ)
       else if ((enemy.type === "fast" || enemy.type === "fastPlatform") && enemyFrames.runner && enemyFrames.runner.length > 0) {
         const anim = enemyAnimations[enemies.indexOf(enemy)];
         const frameIndex = anim ? anim.currentFrame : 0;
@@ -2066,25 +2064,25 @@ function draw() {
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ БЫСТРЫХ ВРАГОВ
         let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
-        let adjustedY = enemy.y - (drawHeight - enemy.height) - 3;
+        let adjustedY = enemy.y - (drawHeight - enemy.height) - 2;
         
         // Отрисовка с анимацией
         ctx.save();
         if (enemy.direction === 1) {
-            // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
-            ctx.translate(adjustedX + drawWidth / 2, adjustedY);
-            ctx.scale(-1, 1);
-            ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+          // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
+          ctx.translate(adjustedX + drawWidth / 2, adjustedY);
+          ctx.scale(-1, 1);
+          ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
         } else {
-            // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
-            ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+          // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
+          ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
         }
         ctx.restore();
         
         // Визуальный эффект застревания для быстрых врагов на 6 уровне
         if (enemy.type === "fastPlatform" && enemy.isStuck) {
-            ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
-            ctx.fillRect(enemy.x - 5, enemy.y - 5, enemy.width + 10, enemy.height + 10);
+          ctx.fillStyle = "rgba(255, 0, 0, 0.3)";
+          ctx.fillRect(enemy.x - 5, enemy.y - 5, enemy.width + 10, enemy.height + 10);
         }
       }
       // ВРАГИ НА ПЛАТФОРМАХ (STANDARD2)
@@ -2121,7 +2119,7 @@ function draw() {
         const currentFrame = enemyFrames.standard1[frameIndex];
         
         // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
-        let drawWidth = enemy.width * 1.5;
+        let drawWidth = enemy.width * 1.3;
         let drawHeight = enemy.height * 2.0;
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ НАЗЕМНЫХ ВРАГОВ ОСТАВЛЯЕМ ПРЕЖНЕЕ СМЕЩЕНИЕ
