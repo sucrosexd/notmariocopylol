@@ -417,14 +417,22 @@ async function loadEnemyAnimations() {
     
     try {
         // Загрузка анимаций для стандартного врага 1
-        const standard1Frame1 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame1.svg')
+        const standard1Frame1 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/standart1_frame1.svg')
             .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
-        const standard1Frame2 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame2.svg')
+        const standard1Frame2 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/standart1_frame2.svg')
             .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
         
         enemyFrames.standard1 = [standard1Frame1, standard1Frame2];
         
-        console.log("Анимации стандартного врага 1 загружены!");
+        // ЗАГРУЗКА АНИМАЦИЙ ДЛЯ СТАНДАРТНОГО ВРАГА 2
+        const standard2Frame1 = await loadImage('assets/animations/characters/enemies/enemy_standart_2/standart2_frame1.svg')
+            .catch(err => createFallbackEnemyImage(60, 60, '#E74C3C'));
+        const standard2Frame2 = await loadImage('assets/animations/characters/enemies/enemy_standart_2/standart2_frame2.svg')
+            .catch(err => createFallbackEnemyImage(60, 60, '#E74C3C'));
+        
+        enemyFrames.standard2 = [standard2Frame1, standard2Frame2];
+        
+        console.log("Анимации стандартных врагов 1 и 2 загружены!");
         return true;
     } catch (error) {
         console.error("Ошибка загрузки анимаций врагов:", error);
@@ -432,6 +440,10 @@ async function loadEnemyAnimations() {
         enemyFrames.standard1 = [
             createFallbackEnemyImage(60, 60, '#8E44AD'),
             createFallbackEnemyImage(60, 60, '#9B59B6')
+        ];
+        enemyFrames.standard2 = [
+            createFallbackEnemyImage(60, 60, '#E74C3C'),
+            createFallbackEnemyImage(60, 60, '#C0392B')
         ];
         return true;
     }
@@ -1234,6 +1246,7 @@ function createEnemies() {
           startX: platform.x + platform.width / 2,
           color: level === 6 ? "#C0392B" : "#E74C3C",
           type: enemyType,
+          enemyType: level === 6 ? "fast" : "standard2",
           platformId: platforms.indexOf(platform),
           grounded: true,
           jumpCooldown: 0,
@@ -1952,15 +1965,44 @@ function draw() {
       }
       // ВРАГИ НА ПЛАТФОРМАХ
       else if (enemy.type === "platform" || enemy.type === "jumping") {
-        ctx.fillStyle = enemy.color;
-        ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
+        // ИСПОЛЬЗУЕМ АНИМАЦИЮ ДЛЯ STANDARD2 ВРАГОВ НА ПЛАТФОРМАХ
+        if (enemy.enemyType === "standard2" && enemyFrames.standard2.length > 0) {
+          const anim = enemyAnimations[enemies.indexOf(enemy)];
+          const frameIndex = anim ? anim.currentFrame : 0;
+          const currentFrame = enemyFrames.standard2[frameIndex];
+          
+          // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
+          let drawWidth = enemy.width * 1.7;
+          let drawHeight = enemy.height * 2.0;
+          
+          // КОРРЕКТИРОВКА ПОЗИЦИИ - ТОЛЬКО ДЛЯ PLATFORM ВРАГОВ (МЕНЬШЕЕ СМЕЩЕНИЕ)
+          let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
+          let adjustedY = enemy.y - (drawHeight - enemy.height) - 0; // УМЕНЬШЕНО С 20 ДО 5
+          
+          // Отрисовка с анимацией
+          ctx.save();
+          if (enemy.direction === 1) {
+            // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
+            ctx.translate(adjustedX + drawWidth / 2, adjustedY);
+            ctx.scale(-1, 1);
+            ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+          } else {
+            // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
+            ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+          }
+          ctx.restore();
+        } else {
+          // Старая отрисовка для других platform врагов (jumping и т.д.)
+          ctx.fillStyle = enemy.color;
+          ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
 
-        // Специальные индикаторы для прыгающих врагов
-        if (enemy.type === "jumping") {
-          // Индикатор готовности к прыжку
-          if (enemy.jumpCooldown < 30) {
-            ctx.fillStyle = "yellow";
-            ctx.fillRect(enemy.x + enemy.width / 2 - 2, enemy.y - 8, 4, 4);
+          // Специальные индикаторы для прыгающих врагов
+          if (enemy.type === "jumping") {
+            // Индикатор готовности к прыжку
+            if (enemy.jumpCooldown < 30) {
+              ctx.fillStyle = "yellow";
+              ctx.fillRect(enemy.x + enemy.width / 2 - 2, enemy.y - 8, 4, 4);
+            }
           }
         }
       }
@@ -1973,12 +2015,12 @@ function draw() {
           const currentFrame = enemyFrames.standard1[frameIndex];
           
           // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
-          let drawWidth = enemy.width * 1.7; // Ширина 1.7
-          let drawHeight = enemy.height * 2.0; // Высота 2.0
+          let drawWidth = enemy.width * 1.5;
+          let drawHeight = enemy.height * 2.0;
           
-          // Корректировка позиции
+          // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ НАЗЕМНЫХ ВРАГОВ ОСТАВЛЯЕМ ПРЕЖНЕЕ СМЕЩЕНИЕ
           let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
-          let adjustedY = enemy.y - (drawHeight - enemy.height) - 20; // Поднимаем на 20px
+          let adjustedY = enemy.y - (drawHeight - enemy.height) - 20; // ОСТАВЛЯЕМ 20
           
           // Отрисовка с анимацией - ИСПРАВЛЕННАЯ ЛОГИКА ОТРАЖЕНИЯ (ПРОТИВОПОЛОЖНЫЕ СТОРОНЫ)
           ctx.save();
@@ -2009,7 +2051,7 @@ function draw() {
 
       // Глаза для всех врагов (кроме бронированных, у которых глаза уже нарисованы)
       // И для врагов с анимацией, у которых глаза уже встроены в SVG
-      if (enemy.type !== "armored" && enemy.enemyType !== "standard1") {
+      if (enemy.type !== "armored" && enemy.enemyType !== "standard1" && enemy.enemyType !== "standard2") {
         ctx.fillStyle = "white";
         ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
         ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
