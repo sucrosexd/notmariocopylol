@@ -53,11 +53,24 @@ let downKeyPressed = false;
 // Анимационные переменные для ниндзи
 let isFacingRight = true;
 let isAttacking = false;
-const ATTACK_DURATION = 15; // длительность анимации атаки в кадрах
+const ATTACK_DURATION = 30; // длительность анимации атаки в кадрах
+const ATTACK_COOLDOWN = 30; // кд после атаки в кадрах (0.5 секунд при 60 FPS)
 let attackCooldown = 0;
-let attackProcessed = false;
-let gamepadAttackProcessed = false;
 let animationTime = 0;
+
+// НОВАЯ СИСТЕМА АТАКИ - УЛУЧШЕННАЯ
+let attackState = "ready"; // "ready", "attacking", "cooldown"
+let attackKeyPressed = false;
+let gamepadAttackPressed = false;
+
+// Хитбокс атаки
+let attackHitbox = {
+  x: 0,
+  y: 0,
+  width: 0,
+  height: 0,
+  active: false
+};
 
 // Система получения урона
 let isInvulnerable = false;
@@ -1412,6 +1425,14 @@ function init() {
   invulnerabilityTimer = 0;
   damageFlashTimer = 0;
 
+  // Сброс системы атаки
+  isAttacking = false;
+  attackState = "ready";
+  attackCooldown = 0;
+  attackKeyPressed = false;
+  gamepadAttackPressed = false;
+  attackHitbox.active = false;
+
   // Инициализация камеры
   camera.x = 0;
   camera.y = levelHeight - camera.height;
@@ -1430,8 +1451,6 @@ function init() {
   updateLevelGoalDisplay();
 
   // Сброс анимационных переменных
-  isAttacking = false;
-  attackCooldown = 0;
   isFacingRight = true;
   animationTime = 0;
   pauseKeyPressed = false;
@@ -1498,6 +1517,7 @@ function drawCharacter() {
   // БАЗОВЫЕ РАЗМЕРЫ
   let drawWidth = player.width;
   let drawHeight = player.height;
+  let yOffset = 0;
 
   // ВЫБОР КАДРА ПО ТИПУ АНИМАЦИИ + ИНДИВИДУАЛЬНЫЕ НАСТРОЙКИ МАСШТАБА
   if (currentAnimation === "run" && characterFrames.run.length > 0) {
@@ -1523,17 +1543,18 @@ function drawCharacter() {
     drawHeight = player.height * 1.3;
   } else if (currentAnimation === "attack" && characterFrames.attack) {
     currentFrame = characterFrames.attack;
-    // Атака в статике - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
-    drawWidth = player.width * 3.0;
-    drawHeight = player.height;
+    // Атака в статике - УВЕЛИЧЕННЫЙ РАЗМЕР
+    drawWidth = player.width * 3.0; 
+    drawHeight = player.height * 1.2;
+    yOffset = -8; // Поднимаем на 20 пикселей во время атаки на земле
   } else if (
     currentAnimation === "jump_attack" &&
     characterFrames.jump_attack
   ) {
     currentFrame = characterFrames.jump_attack;
-    // Атака в прыжке - ПРИНУДИТЕЛЬНОЕ МАСШТАБИРОВАНИЕ
-    drawWidth = player.width * 3.0;
-    drawHeight = player.height;
+    // Атака в прыжке - УВЕЛИЧЕННЫЙ РАЗМЕР
+    drawWidth = player.width * 3.0; 
+    drawHeight = player.height * 1.2; 
   } else {
     currentFrame = characterFrames.idle;
     // Покой - стандартный размер
@@ -1554,7 +1575,7 @@ function drawCharacter() {
 
   // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
   const drawX = player.x;
-  const drawY = player.y;
+  const drawY = player.y + yOffset; 
 
   // Корректировка позиции для сохранения центра при изменении размера
   let adjustedX = drawX;
@@ -1574,7 +1595,7 @@ function drawCharacter() {
   ) {
     // ДОБАВЛЯЕМ КОРРЕКТИРОВКУ ДЛЯ АНИМАЦИЙ АТАКИ
     adjustedX = drawX - (drawWidth - player.width) / 2;
-    adjustedY = drawY;
+    adjustedY = drawY - (drawHeight - player.height) / 2;
   }
 
   // Отражаем если смотрит влево - ИСПОЛЬЗУЕМ ИСХОДНУЮ ЛОГИКУ БЕЗ ТЕЛЕПОРТАЦИИ
@@ -1586,6 +1607,14 @@ function drawCharacter() {
     // Смотрит вправо - рисуем как есть
     ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
   }
+
+  //Просмотр хитбокса
+  // if (attackHitbox.active) {
+  //   ctx.strokeStyle = "red";
+  //   ctx.lineWidth = 2;
+  //   ctx.strokeRect(attackHitbox.x, attackHitbox.y, attackHitbox.width, attackHitbox.height);
+  // }
+
 
   // Восстанавливаем контекст
   ctx.restore();
@@ -2209,15 +2238,85 @@ function updatePlayerAnimation() {
   }
 }
 
+// НОВАЯ ФУНКЦИЯ ЗАПУСКА АТАКИ
 function startAttack() {
-  isAttacking = true;
-  attackCooldown = ATTACK_DURATION;
+    // Проверяем состояние атаки
+    if (attackState !== "ready") return;
+    
+    // Начинаем атаку
+    attackState = "attacking";
+    isAttacking = true;
+    attackCooldown = ATTACK_DURATION;
 
-  // НЕМЕДЛЕННО ОСТАНАВЛИВАЕМ ДВИЖЕНИЕ ПРИ НАЧАЛЕ АТАКИ
-  player.velX = 0;
+    player.velX = 0;
 
-  playSound("enemy_attack", 0.7);
-  console.log("Атака запущена! Движение остановлено.");
+    // СОЗДАЕМ ХИТБОКС АТАКИ
+    updateAttackHitbox();
+    attackHitbox.active = true;
+
+    playSound("enemy_attack", 0.7);
+    console.log("Атака запущена! Движение остановлено.");
+}
+
+// ФУНКЦИЯ ОБНОВЛЕНИЯ ХИТБОКСА АТАКИ
+function updateAttackHitbox() {
+    const attackRange = 60; // УВЕЛИЧЕННЫЙ ХИТБОКС
+    const attackWidth = 60; // ШИРИНА ХИТБОКСА
+    const attackHeight = 40; // ВЫСОТА ХИТБОКСА
+    const yOffset = (currentAnimation === "attack") ? -8 : 0;
+
+    if (player.direction === 1) {
+        // Атака вправо
+        attackHitbox.x = player.x + player.width - 20;
+        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+    } else {
+        // Атака влево
+        attackHitbox.x = player.x - attackRange + 20;
+        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+    }
+    
+    attackHitbox.width = attackRange;
+    attackHitbox.height = attackHeight;
+}
+
+// НОВАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ СИСТЕМЫ АТАКИ
+function updateAttackSystem() {
+  // Обновляем систему атаки только если не в режиме готовности
+  if (attackState !== "ready") {
+    attackCooldown--;
+    
+    // Переход между состояниями атаки
+    if (attackState === "attacking" && attackCooldown <= 0) {
+      // Завершилась анимация атаки, начинаем кулдаун
+      attackState = "cooldown";
+      isAttacking = false;
+      attackHitbox.active = false; // ВЫКЛЮЧАЕМ ХИТБОКС
+      attackCooldown = ATTACK_COOLDOWN;
+      console.log("Анимация атаки завершена, начат кулдаун");
+    }
+    else if (attackState === "cooldown" && attackCooldown <= 0) {
+      // Кулдаун завершен, атака снова доступна
+      attackState = "ready";
+      console.log("Атака снова доступна!");
+    }
+  }
+  
+  // Восстанавливаем движение после атаки
+  if (!isAttacking && attackState === "ready") {
+    // ВОССТАНАВЛИВАЕМ ДВИЖЕНИЕ
+    if (savedMovement.left) {
+      player.velX = -player.speed;
+      player.direction = -1;
+    } else if (savedMovement.right) {
+      player.velX = player.speed;
+      player.direction = 1;
+    }
+    
+    if (Math.abs(savedMovement.gamepadX) > 0.15) {
+      player.velX = savedMovement.gamepadX * player.speed;
+      player.direction = savedMovement.gamepadX > 0 ? 1 : -1;
+    }
+  }
 }
 
 // Обработка ввода с клавиатуры
@@ -2254,21 +2353,20 @@ function handleKeyboardInput() {
   // Способность спускаться по платформам
   downKeyPressed = keys["ArrowDown"] || keys["KeyS"];
 
-  // АТАКА (X или F) - ТОЛЬКО ПРИ НОВОМ НАЖАТИИ
-  const attackPressed = keys["KeyX"] || keys["KeyF"];
-
-  if (attackPressed && !isAttacking && attackCooldown <= 0) {
-    if (!attackProcessed) {
-      startAttack();
-      attackProcessed = true;
-    }
-  } else if (!attackPressed) {
+  // УЛУЧШЕННАЯ ОБРАБОТКА АТАКИ - ЗАЩИТА ОТ ЗАЖАТИЯ
+  const currentAttackPressed = keys["KeyX"] || keys["KeyF"];
+  
+  // Атака доступна только в состоянии "ready" и при НОВОМ нажатии
+  if (currentAttackPressed && attackState === "ready" && !attackKeyPressed) {
+    startAttack();
+    attackKeyPressed = true;
+  } else if (!currentAttackPressed) {
     // Сбрасываем флаг когда кнопка отпущена
-    attackProcessed = false;
+    attackKeyPressed = false;
   }
 }
 
-// НОВАЯ ФУНКЦИЯ: Обработка ввода с геймпада
+// Обработка ввода с геймпада
 function handleGamepadInput() {
   if (!isGamepadConnected || !gamepad) return;
 
@@ -2304,7 +2402,7 @@ function handleGamepadInput() {
     }
   }
 
-  // ПРЫЖОК С ГЕЙМПАДА (обрабатываем и D-Pad Up)
+  // ПРЫЖОК С ГЕЙМПАДА
   const jumpPressed = gamepad.buttons[0].pressed || dpadUp;
   if (jumpPressed && player.grounded && !player.jumping) {
     player.velY = -18;
@@ -2333,17 +2431,55 @@ function handleGamepadInput() {
   const leftStickY = gamepad.axes[1];
   downKeyPressed = gamepad.buttons[13]?.pressed || leftStickY > 0.5;
 
-  // АТАКА С ГЕЙМПАДА
-  const gamepadAttackPressed =
-    gamepad.buttons[2].pressed || gamepad.buttons[5].pressed;
+  // УЛУЧШЕННАЯ ОБРАБОТКА АТАКИ С ГЕЙМПАДА - ЗАЩИТА ОТ ЗАЖАТИЯ
+  const currentGamepadAttackPressed = gamepad.buttons[2].pressed || gamepad.buttons[5].pressed;
+  
+  // Атака доступна только в состоянии "ready" и при НОВОМ нажатии
+  if (currentGamepadAttackPressed && attackState === "ready" && !gamepadAttackPressed) {
+    startAttack();
+    gamepadAttackPressed = true;
+  } else if (!currentGamepadAttackPressed) {
+    // Сбрасываем флаг когда кнопка отпущена
+    gamepadAttackPressed = false;
+  }
+}
 
-  if (gamepadAttackPressed && !isAttacking && attackCooldown <= 0) {
-    if (!gamepadAttackProcessed) {
-      startAttack();
-      gamepadAttackProcessed = true;
+// ФУНКЦИЯ ПРОВЕРКИ СТОЛКНОВЕНИЯ С ВРАГАМИ ПРИ АТАКЕ
+function checkAttackCollisions() {
+  if (!attackHitbox.active) return;
+  
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    let enemy = enemies[i];
+    
+    // Проверяем столкновение хитбокса атаки с врагом
+    if (
+      attackHitbox.x < enemy.x + enemy.width &&
+      attackHitbox.x + attackHitbox.width > enemy.x &&
+      attackHitbox.y < enemy.y + enemy.height &&
+      attackHitbox.y + attackHitbox.height > enemy.y
+    ) {
+      // Убиваем врага
+      enemies.splice(i, 1);
+
+      // Небольшой отскок при убийстве атакой
+      if (!player.grounded) {
+        player.velY = -6;
+      }
+
+      // Разное количество монет за разных врагов
+      let coinValue = 1;
+      if (enemy.type === "armored") coinValue = 3;
+      else if (enemy.type === "fast" || enemy.type === "fastPlatform")
+        coinValue = 2;
+
+      coins += coinValue;
+      coinsCollectedInLevel += coinValue;
+      coinCountElement.textContent = coins;
+      updateLevelGoalDisplay();
+
+      playSound("enemy_defeat", 0.8);
+      playSound("enemy_coin", 0.4);
     }
-  } else if (!gamepadAttackPressed) {
-    gamepadAttackProcessed = false;
   }
 }
 
@@ -2411,38 +2547,16 @@ function update() {
   // Обновление врагов
   updateEnemies();
 
-  // ОБНОВЛЕНИЕ АТАКИ И ВОССТАНОВЛЕНИЕ ДВИЖЕНИЯ ПОСЛЕ АТАКИ
+  // ОБНОВЛЕНИЕ СИСТЕМЫ АТАКИ
+  updateAttackSystem();
+
+  // Обновление хитбокса атаки если атака активна
   if (isAttacking) {
-    attackCooldown--;
-    if (attackCooldown <= 0) {
-      isAttacking = false;
-      console.log("Атака завершена! Движение восстановлено.");
-
-      // ВОССТАНАВЛИВАЕМ ДВИЖЕНИЕ ПОСЛЕ АТАКИ
-      // Проверяем сохраненное состояние клавиатуры
-      if (savedMovement.left) {
-        player.velX = -player.speed;
-        player.direction = -1;
-      } else if (savedMovement.right) {
-        player.velX = player.speed;
-        player.direction = 1;
-      }
-
-      // Проверяем сохраненное состояние геймпада
-      if (Math.abs(savedMovement.gamepadX) > 0.15) {
-        player.velX = savedMovement.gamepadX * player.speed;
-        player.direction = savedMovement.gamepadX > 0 ? 1 : -1;
-      }
-    }
-
-    // Блокируем обработку ввода во время атаки
-    attackProcessed = true;
-    gamepadAttackProcessed = true;
-  } else if (!isAttacking && attackCooldown <= 0) {
-    // Разблокируем обработку ввода когда атака завершена
-    attackProcessed = false;
-    gamepadAttackProcessed = false;
+    updateAttackHitbox();
   }
+
+  // ПРОВЕРКА СТОЛКНОВЕНИЙ АТАКИ С ВРАГАМИ
+  checkAttackCollisions();
 
   // Обновление камеры
   updateCamera();
@@ -2531,7 +2645,7 @@ function update() {
     }
   }
 
-  // Проверка столкновения с врагами
+  // Проверка столкновения с врагами (для получения урона)
   for (let i = enemies.length - 1; i >= 0; i--) {
     let enemy = enemies[i];
     if (
@@ -2561,12 +2675,12 @@ function update() {
         updateLevelGoalDisplay();
 
         playSound("enemy_defeat", 0.8);
-        playSound("enemy_coin", 0.6);
+        playSound("enemy_coin", 0.4);
         continue; // Пропускаем остальную логику для этого врага
       }
 
       // Старая логика прыжка на врага (остается как запасной вариант)
-      else if (
+      if (
         player.velY > 0 &&
         player.y + player.height < enemy.y + enemy.height / 2 &&
         !enemy.isArmored
@@ -2580,8 +2694,8 @@ function update() {
         updateLevelGoalDisplay();
 
         playSound("jump_hit", 0.7);
-        playSound("enemy_defeat", 0.6);
-        playSound("enemy_coin", 0.5);
+        playSound("enemy_defeat", 0.8);
+        playSound("enemy_coin", 0.4);
       }
       // Бронированные враги при прыжке на них - отскакиваем без убийства
       else if (
