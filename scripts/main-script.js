@@ -271,6 +271,64 @@ async function loadAllSounds() {
   console.log("Все звуки загружены");
 }
 
+// Загрузка анимаций монет
+async function loadCoinAnimations() {
+  console.log("Начинаем загрузку анимаций монет...");
+
+  try {
+    // ✅ ЗАГРУЖАЕМ 2 КАДРА ДЛЯ АНИМАЦИИ МОНЕТ
+    const coinFrame1 = await loadImage('assets/animations/environment/coin/coin1.svg')
+      .catch(err => {
+        console.warn("coin1.svg - Ошибка загрузки");
+        return createFallbackCoinImage();
+      });
+    
+    const coinFrame2 = await loadImage('assets/animations/environment/coin/coin3.svg')
+      .catch(err => {
+        console.warn("coin3.svg - Ошибка загрузки");
+        return createFallbackCoinImage();
+      });
+
+    // Сохраняем в глобальной переменной
+    window.coinFrames = [coinFrame1, coinFrame2];
+
+    console.log("Анимации монет загружены!");
+    console.log(`  - Coin Frame 1: ${coinFrame1 ? "OK" : "FAIL"}`);
+    console.log(`  - Coin Frame 2: ${coinFrame2 ? "OK" : "FAIL"}`);
+
+    return true;
+  } catch (error) {
+    console.error("Критическая ошибка загрузки анимаций монет:", error);
+    // Создаем фоллбэк анимации
+    window.coinFrames = [createFallbackCoinImage(), createFallbackCoinImage()];
+    return true;
+  }
+}
+
+// Создание фоллбэк изображения для монеты
+function createFallbackCoinImage() {
+  const canvas = document.createElement("canvas");
+  canvas.width = 30;
+  canvas.height = 30;
+  const ctx = canvas.getContext("2d");
+
+  // Рисуем простую монету
+  ctx.fillStyle = "#FFD700";
+  ctx.beginPath();
+  ctx.arc(15, 15, 12, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Детали монеты
+  ctx.fillStyle = "#FFEC8B";
+  ctx.beginPath();
+  ctx.arc(15, 15, 8, 0, Math.PI * 2);
+  ctx.fill();
+
+  const img = new Image();
+  img.src = canvas.toDataURL();
+  return img;
+}
+
 // Загрузка анимаций персонажа
 async function loadCharacterAnimations() {
   console.log("Начинаем загрузку анимаций персонажа...");
@@ -932,6 +990,9 @@ function createCoinsOnPlatform(platform) {
       bouncePhase: Math.random() * Math.PI * 2,
       isHighCoin: isHighCoin,
       isSilverCoin: isSilverCoin, // НОВОЕ: флаг серебряной монеты
+      // ✅ ДОБАВЛЯЕМ АНИМАЦИОННЫЕ СВОЙСТВА
+      animationTimer: 0,
+      currentFrame: Math.random() > 0.5 ? 0 : 1, // Случайный начальный кадр
     });
   }
 
@@ -1691,9 +1752,18 @@ function drawCharacter() {
 function updateCoinAnimations() {
   for (let coin of coinsList) {
     if (!coin.collected) {
-      // Обновляем анимацию подпрыгивания с уменьшенной амплитудой
+      // Обновляем анимацию подпрыгивания (левитация)
       coin.bouncePhase += coin.bounceSpeed;
       coin.bounceOffset = Math.sin(coin.bouncePhase) * 5;
+      
+      // ✅ ОБНОВЛЯЕМ АНИМАЦИЮ ВРАЩЕНИЯ С ИСПОЛЬЗОВАНИЕМ 2 КАДРОВ
+      coin.animationTimer = (coin.animationTimer || 0) + 1;
+      
+      // Меняем кадры для создания эффекта вращения
+      if (coin.animationTimer >= 15) { // Скорость смены кадров
+        coin.animationTimer = 0;
+        coin.currentFrame = (coin.currentFrame || 0) === 0 ? 1 : 0;
+      }
     }
   }
 }
@@ -1926,17 +1996,32 @@ function draw() {
       // Используем анимацию подпрыгивания с уменьшенной амплитудой
       const currentY = coin.originalY + coin.bounceOffset;
 
-      // Используем текстуру монеты вместо рисования круга
-      if (svgImages.coin) {
+      // ✅ ОТРИСОВКА С АНИМАЦИЕЙ ВРАЩЕНИЯ (2 КАДРА)
+      if (window.coinFrames && window.coinFrames.length > 0) {
+        const currentFrame = window.coinFrames[coin.currentFrame || 0];
+        
+        ctx.save();
+        
+        // Перемещаем контекст к центру монеты для возможного дополнительного вращения
+        const centerX = coin.x + coin.width / 2;
+        const centerY = currentY + coin.height / 2;
+        ctx.translate(centerX, centerY);
+        
+        // Можно добавить дополнительное плавное вращение если нужно
+        // ctx.rotate((coin.rotation || 0) * 0.1);
+        
+        // Рисуем текущий кадр анимации
         ctx.drawImage(
-          svgImages.coin,
-          coin.x,
-          currentY,
+          currentFrame,
+          -coin.width / 2,
+          -coin.height / 2,
           coin.width,
           coin.height,
         );
+        
+        ctx.restore();
       } else {
-        // Запасной вариант если текстура не загружена
+        // Запасной вариант если анимации не загружены
         ctx.fillStyle = coin.color;
         ctx.beginPath();
         ctx.arc(
@@ -1968,7 +2053,7 @@ function draw() {
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ БРОНИРОВАННЫХ ВРАГОВ
         let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
-        let adjustedY = enemy.y - (drawHeight - enemy.height) - 0;
+        let adjustedY = enemy.y - (drawHeight - enemy.height) - 15;
         
         // Отрисовка с анимацией
         ctx.save();
@@ -1982,15 +2067,6 @@ function draw() {
           ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
         }
         ctx.restore();
-        
-        // Индикатор брони (щит) - оставляем как визуальный эффект
-        ctx.fillStyle = "#E74C3C";
-        ctx.beginPath();
-        ctx.moveTo(enemy.x + enemy.width / 2, enemy.y - 5);
-        ctx.lineTo(enemy.x + enemy.width / 2 - 10, enemy.y + 5);
-        ctx.lineTo(enemy.x + enemy.width / 2 + 10, enemy.y + 5);
-        ctx.closePath();
-        ctx.fill();
       }
       // ЛЕТАЮЩИЕ ВРАГИ
       else if (enemy.type === "flying" && enemyFrames.flying.length > 0) {
@@ -2064,7 +2140,7 @@ function draw() {
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ БЫСТРЫХ ВРАГОВ
         let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
-        let adjustedY = enemy.y - (drawHeight - enemy.height) - 2;
+        let adjustedY = enemy.y - (drawHeight - enemy.height) - 10;
         
         // Отрисовка с анимацией
         ctx.save();
@@ -2119,7 +2195,7 @@ function draw() {
         const currentFrame = enemyFrames.standard1[frameIndex];
         
         // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
-        let drawWidth = enemy.width * 1.3;
+        let drawWidth = enemy.width * 1.5;
         let drawHeight = enemy.height * 2.0;
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ НАЗЕМНЫХ ВРАГОВ ОСТАВЛЯЕМ ПРЕЖНЕЕ СМЕЩЕНИЕ
@@ -2250,6 +2326,9 @@ function createGroundCoins() {
       bounceSpeed: 0.08 + Math.random() * 0.04,
       bouncePhase: Math.random() * Math.PI * 2,
       isHighCoin: false,
+      // ✅ ДОБАВЛЯЕМ АНИМАЦИОННЫЕ СВОЙСТВА
+      animationTimer: 0,
+      currentFrame: Math.random() > 0.5 ? 0 : 1, // Случайный начальный кадр
     });
   }
 
@@ -3114,7 +3193,7 @@ window.addEventListener("resize", resizeCanvas);
 setInterval(handleGamepad, 100);
 
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
-Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations()])
+Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations()])
   .then(() => {
     console.log("Все ресурсы загружены, ожидаем пользователя...");
     // Только запускаем игровой цикл, но не инициализируем игру
