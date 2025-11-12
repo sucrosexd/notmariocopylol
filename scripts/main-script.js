@@ -69,7 +69,7 @@ let attackHitbox = {
   y: 0,
   width: 0,
   height: 0,
-  active: false
+  active: false,
 };
 
 // Система получения урона
@@ -101,15 +101,20 @@ const ANIMATION_SPEED = 100; // ms между кадрами
 // DeltaTime для точной анимации
 let lastFrameTime = performance.now();
 let deltaTime = 0;
+const FIXED_TIMESTEP = 1000 / 60; // 60 FPS как базовая частота
+let accumulatedTime = 0;
+
+// Добавьте эту константу для базовой частоты обновления физики
+const BASE_FPS = 60;
 
 // Добавляем в раздел с другими переменными
 let enemyFrames = {
-    standard1: [],
-    standard2: [],
-    jumper: [],
-    fast: [],
-    flying: [],
-    armored: []
+  standard1: [],
+  standard2: [],
+  jumper: [],
+  fast: [],
+  flying: [],
+  armored: [],
 };
 
 let enemyAnimations = {}; // Хранит текущее состояние анимации для каждого врага
@@ -413,97 +418,99 @@ function createFallbackImage(width, height, color) {
 
 // Загрузка анимаций врагов
 async function loadEnemyAnimations() {
-    console.log("Начинаем загрузку анимаций врагов...");
-    
-    try {
-        // Загрузка анимаций для стандартного врага 1
-        const standard1Frame1 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame1.svg')
-            .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
-        const standard1Frame2 = await loadImage('assets/animations/characters/enemies/enemy_standart_1/frame2.svg')
-            .catch(err => createFallbackEnemyImage(60, 60, '#8E44AD'));
-        
-        enemyFrames.standard1 = [standard1Frame1, standard1Frame2];
-        
-        console.log("Анимации стандартного врага 1 загружены!");
-        return true;
-    } catch (error) {
-        console.error("Ошибка загрузки анимаций врагов:", error);
-        // Создаем фоллбэк анимации
-        enemyFrames.standard1 = [
-            createFallbackEnemyImage(60, 60, '#8E44AD'),
-            createFallbackEnemyImage(60, 60, '#9B59B6')
-        ];
-        return true;
-    }
+  console.log("Начинаем загрузку анимаций врагов...");
+
+  try {
+    // Загрузка анимаций для стандартного врага 1
+    const standard1Frame1 = await loadImage(
+      "assets/animations/characters/enemies/enemy_standart_1/frame1.svg",
+    ).catch((err) => createFallbackEnemyImage(60, 60, "#8E44AD"));
+    const standard1Frame2 = await loadImage(
+      "assets/animations/characters/enemies/enemy_standart_1/frame2.svg",
+    ).catch((err) => createFallbackEnemyImage(60, 60, "#8E44AD"));
+
+    enemyFrames.standard1 = [standard1Frame1, standard1Frame2];
+
+    console.log("Анимации стандартного врага 1 загружены!");
+    return true;
+  } catch (error) {
+    console.error("Ошибка загрузки анимаций врагов:", error);
+    // Создаем фоллбэк анимации
+    enemyFrames.standard1 = [
+      createFallbackEnemyImage(60, 60, "#8E44AD"),
+      createFallbackEnemyImage(60, 60, "#9B59B6"),
+    ];
+    return true;
+  }
 }
 
 // Создание фоллбэк изображения для врага
 function createFallbackEnemyImage(width, height, color) {
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    const ctx = canvas.getContext('2d');
-    
-    // Рисуем простого врага
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, width, height);
-    
-    // Глаза
-    ctx.fillStyle = 'white';
-    ctx.fillRect(width * 0.2, height * 0.3, width * 0.15, height * 0.15);
-    ctx.fillRect(width * 0.65, height * 0.3, width * 0.15, height * 0.15);
-    
-    ctx.fillStyle = 'black';
-    ctx.fillRect(width * 0.23, height * 0.33, width * 0.09, height * 0.09);
-    ctx.fillRect(width * 0.68, height * 0.33, width * 0.09, height * 0.09);
-    
-    const img = new Image();
-    img.src = canvas.toDataURL();
-    return img;
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+
+  // Рисуем простого врага
+  ctx.fillStyle = color;
+  ctx.fillRect(0, 0, width, height);
+
+  // Глаза
+  ctx.fillStyle = "white";
+  ctx.fillRect(width * 0.2, height * 0.3, width * 0.15, height * 0.15);
+  ctx.fillRect(width * 0.65, height * 0.3, width * 0.15, height * 0.15);
+
+  ctx.fillStyle = "black";
+  ctx.fillRect(width * 0.23, height * 0.33, width * 0.09, height * 0.09);
+  ctx.fillRect(width * 0.68, height * 0.33, width * 0.09, height * 0.09);
+
+  const img = new Image();
+  img.src = canvas.toDataURL();
+  return img;
 }
 
 // Инициализация анимации для врага
 function initEnemyAnimation(enemy) {
-    const enemyId = enemies.indexOf(enemy);
-    enemyAnimations[enemyId] = {
-        currentFrame: 0,
-        animationTimer: 0,
-        animationSpeed: 200, // ms между кадрами
-        direction: enemy.direction
-    };
+  const enemyId = enemies.indexOf(enemy);
+  enemyAnimations[enemyId] = {
+    currentFrame: 0,
+    animationTimer: 0,
+    animationSpeed: 200, // ms между кадрами
+    direction: enemy.direction,
+  };
 }
 
 // Обновление анимации врагов
 function updateEnemyAnimations() {
-    const currentTime = performance.now();
-    
-    for (let i = 0; i < enemies.length; i++) {
-        const enemy = enemies[i];
-        const anim = enemyAnimations[i];
-        
-        if (!anim) {
-            initEnemyAnimation(enemy);
-            continue;
-        }
-        
-        // Обновляем направление анимации в соответствии с направлением движения
-        if (anim.direction !== enemy.direction) {
-            anim.direction = enemy.direction;
-        }
-        
-        // Обновляем анимацию только для движущихся врагов
-        if (enemy.speed > 0 && !enemy.isStuck) {
-            anim.animationTimer += deltaTime;
-            
-            if (anim.animationTimer >= anim.animationSpeed) {
-                anim.animationTimer = 0;
-                anim.currentFrame = (anim.currentFrame + 1) % 2; // 2 кадра анимации
-            }
-        } else {
-            // Если враг не двигается, показываем первый кадр
-            anim.currentFrame = 0;
-        }
+  const currentTime = performance.now();
+
+  for (let i = 0; i < enemies.length; i++) {
+    const enemy = enemies[i];
+    const anim = enemyAnimations[i];
+
+    if (!anim) {
+      initEnemyAnimation(enemy);
+      continue;
     }
+
+    // Обновляем направление анимации в соответствии с направлением движения
+    if (anim.direction !== enemy.direction) {
+      anim.direction = enemy.direction;
+    }
+
+    // Обновляем анимацию только для движущихся врагов
+    if (enemy.speed > 0 && !enemy.isStuck) {
+      anim.animationTimer += deltaTime;
+
+      if (anim.animationTimer >= anim.animationSpeed) {
+        anim.animationTimer = 0;
+        anim.currentFrame = (anim.currentFrame + 1) % 2; // 2 кадра анимации
+      }
+    } else {
+      // Если враг не двигается, показываем первый кадр
+      anim.currentFrame = 0;
+    }
+  }
 }
 
 // Вспомогательная функция загрузки изображения
@@ -1059,7 +1066,7 @@ function createEnemies() {
         startX: enemyX,
         color: "#8E44AD",
         type: "ground",
-        enemyType: "standard1"
+        enemyType: "standard1",
       });
     }
   }
@@ -1544,7 +1551,7 @@ function drawCharacter() {
   } else if (currentAnimation === "attack" && characterFrames.attack) {
     currentFrame = characterFrames.attack;
     // Атака в статике - УВЕЛИЧЕННЫЙ РАЗМЕР
-    drawWidth = player.width * 3.0; 
+    drawWidth = player.width * 3.0;
     drawHeight = player.height * 1.2;
     yOffset = -8; // Поднимаем на 20 пикселей во время атаки на земле
   } else if (
@@ -1553,8 +1560,8 @@ function drawCharacter() {
   ) {
     currentFrame = characterFrames.jump_attack;
     // Атака в прыжке - УВЕЛИЧЕННЫЙ РАЗМЕР
-    drawWidth = player.width * 3.0; 
-    drawHeight = player.height * 1.2; 
+    drawWidth = player.width * 3.0;
+    drawHeight = player.height * 1.2;
   } else {
     currentFrame = characterFrames.idle;
     // Покой - стандартный размер
@@ -1575,7 +1582,7 @@ function drawCharacter() {
 
   // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
   const drawX = player.x;
-  const drawY = player.y + yOffset; 
+  const drawY = player.y + yOffset;
 
   // Корректировка позиции для сохранения центра при изменении размера
   let adjustedX = drawX;
@@ -1615,7 +1622,6 @@ function drawCharacter() {
   //   ctx.strokeRect(attackHitbox.x, attackHitbox.y, attackHitbox.width, attackHitbox.height);
   // }
 
-
   // Восстанавливаем контекст
   ctx.restore();
 }
@@ -1632,9 +1638,8 @@ function updateCoinAnimations() {
 }
 
 // Обновление врагов на платформах
-function updatePlatformEnemies() {
+function updatePlatformEnemies(timeScale) {
   for (let enemy of enemies) {
-    // Обрабатываем всех врагов на платформах (обычных, прыгунов, бронированных и быстрых на платформах)
     if (
       enemy.type === "platform" ||
       enemy.type === "jumping" ||
@@ -1694,11 +1699,11 @@ function updatePlatformEnemies() {
           }
         }
 
-        // Горизонтальное движение (бронированные медленнее)
+        // Горизонтальное движение с учетом timeScale
         const speedMultiplier = enemy.type === "armored" ? 0.7 : 1.0;
-        // Только если враг не застрял
         if (!enemy.isStuck) {
-          enemy.x += enemy.speed * enemy.direction * speedMultiplier;
+          enemy.x +=
+            enemy.speed * enemy.direction * speedMultiplier * timeScale;
         }
 
         // Проверка границ платформы
@@ -1712,7 +1717,7 @@ function updatePlatformEnemies() {
 
         // Для прыгающих врагов (только небронированных)
         if (enemy.type === "jumping") {
-          enemy.jumpCooldown--;
+          enemy.jumpCooldown -= timeScale;
 
           // Периодически прыгают
           if (enemy.jumpCooldown <= 0 && Math.random() > 0.95) {
@@ -1724,8 +1729,8 @@ function updatePlatformEnemies() {
 
           // Применение гравитации
           if (!enemy.grounded) {
-            enemy.velY += gravity * 0.8;
-            enemy.y += enemy.velY;
+            enemy.velY += gravity * 0.8 * timeScale;
+            enemy.y += enemy.velY * timeScale;
 
             // Проверка приземления на платформу
             if (enemy.y + enemy.height > platform.y && enemy.velY > 0) {
@@ -1745,12 +1750,11 @@ function updatePlatformEnemies() {
 }
 
 // Обновление врагов
-function updateEnemies() {
-  // Обновляем врагов на платформах (включая бронированных)
-  updatePlatformEnemies();
+function updateEnemies(timeScale) {
+  // Обновляем врагов на платформах
+  updatePlatformEnemies(timeScale);
 
   for (let enemy of enemies) {
-    // Пропускаем врагов на платформах, так как они уже обработаны
     if (
       enemy.type === "platform" ||
       enemy.type === "jumping" ||
@@ -1758,8 +1762,8 @@ function updateEnemies() {
     )
       continue;
 
-    // Горизонтальное движение для остальных врагов
-    enemy.x += enemy.speed * enemy.direction;
+    // Горизонтальное движение для остальных врагов с учетом timeScale
+    enemy.x += enemy.speed * enemy.direction * timeScale;
 
     if (
       enemy.x <= enemy.startX - enemy.patrolRange ||
@@ -1768,10 +1772,11 @@ function updateEnemies() {
       enemy.direction *= -1;
     }
 
-    // Вертикальное движение для летающих врагов
+    // Вертикальное движение для летающих врагов с учетом timeScale
     if (enemy.isFlying) {
       if (enemy.verticalSpeed) {
-        enemy.y += Math.sin(animationTime * enemy.verticalSpeed) * 2;
+        enemy.y +=
+          Math.sin(animationTime * enemy.verticalSpeed) * 2 * timeScale;
       }
     }
 
@@ -1789,11 +1794,10 @@ function updateEnemies() {
 }
 
 // Отрисовка игры с учетом камеры
-function draw() {
+function draw(alpha = 1) {
   // Очистка canvas (теперь очищаем только видимую область)
   ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-  // Если игра в состоянии preload или menu, не рисуем игровой мир 
   if (gameState === "preload" || gameState === "menu") {
     return;
   }
@@ -1811,13 +1815,12 @@ function draw() {
     const bgHeight = levelHeight;
     const bgWidth = bgHeight * bgAspectRatio;
     const numRepeats = Math.ceil(levelWidth / bgWidth) + 1;
-    
+
     for (let i = 0; i < numRepeats; i++) {
       const x = i * bgWidth;
       ctx.drawImage(bgImg, x, 0, bgWidth, bgHeight);
     }
-  }
-  else {
+  } else {
     const gradient = ctx.createLinearGradient(0, 0, 0, levelHeight);
     gradient.addColorStop(0, "#87CEEB");
     gradient.addColorStop(0.7, "#1E90FF");
@@ -1967,36 +1970,51 @@ function draw() {
       // НАЗЕМНЫЕ ВРАГИ
       else {
         // Используем анимацию для стандартных врагов
-        if (enemy.enemyType === "standard1" && enemyFrames.standard1.length > 0) {
+        if (
+          enemy.enemyType === "standard1" &&
+          enemyFrames.standard1.length > 0
+        ) {
           const anim = enemyAnimations[enemies.indexOf(enemy)];
           const frameIndex = anim ? anim.currentFrame : 0;
           const currentFrame = enemyFrames.standard1[frameIndex];
-          
+
           // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ВРАГОВ
           let drawWidth = enemy.width * 1.7; // Ширина 1.7
           let drawHeight = enemy.height * 2.0; // Высота 2.0
-          
+
           // Корректировка позиции
           let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
           let adjustedY = enemy.y - (drawHeight - enemy.height) - 20; // Поднимаем на 20px
-          
+
           // Отрисовка с анимацией - ИСПРАВЛЕННАЯ ЛОГИКА ОТРАЖЕНИЯ (ПРОТИВОПОЛОЖНЫЕ СТОРОНЫ)
           ctx.save();
           if (enemy.direction === 1) {
             // Враг движется ВПРАВО - отражаем по центру (смотрит влево)
             ctx.translate(adjustedX + drawWidth / 2, adjustedY);
             ctx.scale(-1, 1);
-            ctx.drawImage(currentFrame, -drawWidth / 2, 0, drawWidth, drawHeight);
+            ctx.drawImage(
+              currentFrame,
+              -drawWidth / 2,
+              0,
+              drawWidth,
+              drawHeight,
+            );
           } else {
             // Враг движется ВЛЕВО - рисуем как есть (смотрит вправо)
-            ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
+            ctx.drawImage(
+              currentFrame,
+              adjustedX,
+              adjustedY,
+              drawWidth,
+              drawHeight,
+            );
           }
           ctx.restore();
         } else {
           // Старая отрисовка как запасной вариант
           ctx.fillStyle = enemy.color;
           ctx.fillRect(enemy.x, enemy.y, enemy.width, enemy.height);
-          
+
           ctx.fillStyle = "white";
           ctx.fillRect(enemy.x + 8, enemy.y + 15, 12, 12);
           ctx.fillRect(enemy.x + enemy.width - 20, enemy.y + 15, 12, 12);
@@ -2240,43 +2258,43 @@ function updatePlayerAnimation() {
 
 // НОВАЯ ФУНКЦИЯ ЗАПУСКА АТАКИ
 function startAttack() {
-    // Проверяем состояние атаки
-    if (attackState !== "ready") return;
-    
-    // Начинаем атаку
-    attackState = "attacking";
-    isAttacking = true;
-    attackCooldown = ATTACK_DURATION;
+  // Проверяем состояние атаки
+  if (attackState !== "ready") return;
 
-    player.velX = 0;
+  // Начинаем атаку
+  attackState = "attacking";
+  isAttacking = true;
+  attackCooldown = ATTACK_DURATION;
 
-    // СОЗДАЕМ ХИТБОКС АТАКИ
-    updateAttackHitbox();
-    attackHitbox.active = true;
+  player.velX = 0;
 
-    playSound("enemy_attack", 0.7);
-    console.log("Атака запущена! Движение остановлено.");
+  // СОЗДАЕМ ХИТБОКС АТАКИ
+  updateAttackHitbox();
+  attackHitbox.active = true;
+
+  playSound("enemy_attack", 0.7);
+  console.log("Атака запущена! Движение остановлено.");
 }
 
 // ФУНКЦИЯ ОБНОВЛЕНИЯ ХИТБОКСА АТАКИ
 function updateAttackHitbox() {
-    const attackRange = 60; // УВЕЛИЧЕННЫЙ ХИТБОКС
-    const attackWidth = 60; // ШИРИНА ХИТБОКСА
-    const attackHeight = 40; // ВЫСОТА ХИТБОКСА
-    const yOffset = (currentAnimation === "attack") ? -8 : 0;
+  const attackRange = 60; // УВЕЛИЧЕННЫЙ ХИТБОКС
+  const attackWidth = 60; // ШИРИНА ХИТБОКСА
+  const attackHeight = 40; // ВЫСОТА ХИТБОКСА
+  const yOffset = currentAnimation === "attack" ? -8 : 0;
 
-    if (player.direction === 1) {
-        // Атака вправо
-        attackHitbox.x = player.x + player.width - 20;
-        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
-    } else {
-        // Атака влево
-        attackHitbox.x = player.x - attackRange + 20;
-        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
-    }
-    
-    attackHitbox.width = attackRange;
-    attackHitbox.height = attackHeight;
+  if (player.direction === 1) {
+    // Атака вправо
+    attackHitbox.x = player.x + player.width - 20;
+    attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+  } else {
+    // Атака влево
+    attackHitbox.x = player.x - attackRange + 20;
+    attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+  }
+
+  attackHitbox.width = attackRange;
+  attackHitbox.height = attackHeight;
 }
 
 // НОВАЯ ФУНКЦИЯ ОБНОВЛЕНИЯ СИСТЕМЫ АТАКИ
@@ -2284,7 +2302,7 @@ function updateAttackSystem() {
   // Обновляем систему атаки только если не в режиме готовности
   if (attackState !== "ready") {
     attackCooldown--;
-    
+
     // Переход между состояниями атаки
     if (attackState === "attacking" && attackCooldown <= 0) {
       // Завершилась анимация атаки, начинаем кулдаун
@@ -2293,14 +2311,13 @@ function updateAttackSystem() {
       attackHitbox.active = false; // ВЫКЛЮЧАЕМ ХИТБОКС
       attackCooldown = ATTACK_COOLDOWN;
       console.log("Анимация атаки завершена, начат кулдаун");
-    }
-    else if (attackState === "cooldown" && attackCooldown <= 0) {
+    } else if (attackState === "cooldown" && attackCooldown <= 0) {
       // Кулдаун завершен, атака снова доступна
       attackState = "ready";
       console.log("Атака снова доступна!");
     }
   }
-  
+
   // Восстанавливаем движение после атаки
   if (!isAttacking && attackState === "ready") {
     // ВОССТАНАВЛИВАЕМ ДВИЖЕНИЕ
@@ -2311,7 +2328,7 @@ function updateAttackSystem() {
       player.velX = player.speed;
       player.direction = 1;
     }
-    
+
     if (Math.abs(savedMovement.gamepadX) > 0.15) {
       player.velX = savedMovement.gamepadX * player.speed;
       player.direction = savedMovement.gamepadX > 0 ? 1 : -1;
@@ -2355,7 +2372,7 @@ function handleKeyboardInput() {
 
   // УЛУЧШЕННАЯ ОБРАБОТКА АТАКИ - ЗАЩИТА ОТ ЗАЖАТИЯ
   const currentAttackPressed = keys["KeyX"] || keys["KeyF"];
-  
+
   // Атака доступна только в состоянии "ready" и при НОВОМ нажатии
   if (currentAttackPressed && attackState === "ready" && !attackKeyPressed) {
     startAttack();
@@ -2432,10 +2449,15 @@ function handleGamepadInput() {
   downKeyPressed = gamepad.buttons[13]?.pressed || leftStickY > 0.5;
 
   // УЛУЧШЕННАЯ ОБРАБОТКА АТАКИ С ГЕЙМПАДА - ЗАЩИТА ОТ ЗАЖАТИЯ
-  const currentGamepadAttackPressed = gamepad.buttons[2].pressed || gamepad.buttons[5].pressed;
-  
+  const currentGamepadAttackPressed =
+    gamepad.buttons[2].pressed || gamepad.buttons[5].pressed;
+
   // Атака доступна только в состоянии "ready" и при НОВОМ нажатии
-  if (currentGamepadAttackPressed && attackState === "ready" && !gamepadAttackPressed) {
+  if (
+    currentGamepadAttackPressed &&
+    attackState === "ready" &&
+    !gamepadAttackPressed
+  ) {
     startAttack();
     gamepadAttackPressed = true;
   } else if (!currentGamepadAttackPressed) {
@@ -2447,10 +2469,10 @@ function handleGamepadInput() {
 // ФУНКЦИЯ ПРОВЕРКИ СТОЛКНОВЕНИЯ С ВРАГАМИ ПРИ АТАКЕ
 function checkAttackCollisions() {
   if (!attackHitbox.active) return;
-  
+
   for (let i = enemies.length - 1; i >= 0; i--) {
     let enemy = enemies[i];
-    
+
     // Проверяем столкновение хитбокса атаки с врагом
     if (
       attackHitbox.x < enemy.x + enemy.width &&
@@ -2484,11 +2506,9 @@ function checkAttackCollisions() {
 }
 
 // Обновление игровой логики
-function update() {
-  // Вычисляем deltaTime
-  const currentTime = performance.now();
-  deltaTime = currentTime - lastFrameTime;
-  lastFrameTime = currentTime;
+function update(dt) {
+  // Преобразуем dt в множитель относительно базовой частоты 60 FPS
+  const timeScale = dt / FIXED_TIMESTEP;
 
   if (gameState === "preload" || gameState === "menu") {
     return;
@@ -2532,11 +2552,16 @@ function update() {
 
   if (gameState !== "playing") return;
 
-  // Обновление анимации персонажа (использует deltaTime)
+  // Обновление системы урона (всегда, даже в паузе для анимации)
+  updateDamageSystem();
+
+  if (gameState !== "playing") return;
+
+  // Обновление анимации персонажа
   updatePlayerAnimation();
 
-  // Обновление времени анимации (декоративное, можно оставить)
-  animationTime += 0.1;
+  // Обновление времени анимации с учетом timeScale
+  animationTime += 0.1 * timeScale;
 
   // Обновление анимации монет
   updateCoinAnimations();
@@ -2544,10 +2569,10 @@ function update() {
   // Обновление анимации врагов
   updateEnemyAnimations();
 
-  // Обновление врагов
-  updateEnemies();
+  // Обновление врагов с учетом timeScale
+  updateEnemies(timeScale);
 
-  // ОБНОВЛЕНИЕ СИСТЕМЫ АТАКИ
+  // Обновление системы атаки
   updateAttackSystem();
 
   // Обновление хитбокса атаки если атака активна
@@ -2561,21 +2586,21 @@ function update() {
   // Обновление камеры
   updateCamera();
 
-  // Применение гравитации
-  player.velY += gravity;
+  // Применение гравитации с учетом timeScale
+  player.velY += gravity * timeScale;
 
   // Применение трения при движении по земле (только если не атакуем)
   if (player.grounded && !isAttacking) {
-    player.velX *= friction;
+    player.velX *= Math.pow(friction, timeScale);
   }
 
   // Обработка ввода с клавиатуры и геймпада
   handleKeyboardInput();
   handleGamepadInput();
 
-  // Обновление позиции игрока
-  player.x += player.velX;
-  player.y += player.velY;
+  // Обновление позиции игрока с учетом timeScale
+  player.x += player.velX * timeScale;
+  player.y += player.velY * timeScale;
 
   // Звук приземления
   if (!player.lastGroundedState && player.grounded) {
@@ -2730,9 +2755,27 @@ function update() {
 }
 
 // Игровой цикл
-function gameLoop() {
-  update();
-  draw();
+function gameLoop(currentTime) {
+  // Вычисляем deltaTime
+  deltaTime = currentTime - lastFrameTime;
+  lastFrameTime = currentTime;
+
+  // Ограничиваем максимальный deltaTime для предотвращения "спагetti code"
+  if (deltaTime > 1000) deltaTime = FIXED_TIMESTEP;
+
+  // Накопление времени для фиксированного обновления физики
+  accumulatedTime += deltaTime;
+
+  // Обновляем физику с фиксированным временным шагом
+  while (accumulatedTime >= FIXED_TIMESTEP) {
+    update(FIXED_TIMESTEP); // Передаем фиксированный шаг времени
+    accumulatedTime -= FIXED_TIMESTEP;
+  }
+
+  // Отрисовка с интерполяцией (опционально, для плавности)
+  const alpha = accumulatedTime / FIXED_TIMESTEP;
+  draw(alpha);
+
   requestAnimationFrame(gameLoop);
 }
 
@@ -2965,11 +3008,11 @@ setInterval(handleGamepad, 100);
 Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations()])
   .then(() => {
     console.log("Все ресурсы загружены, ожидаем пользователя...");
-    // Только запускаем игровой цикл, но не инициализируем игру
     loadCharacterAnimations();
-    gameLoop();
+    // Запускаем игровой цикл с временем
+    requestAnimationFrame(gameLoop);
   })
   .catch((error) => {
     console.log("Запуск с заглушками из-за ошибки загрузки:", error);
-    gameLoop();
+    requestAnimationFrame(gameLoop);
   });
