@@ -102,6 +102,12 @@ const ANIMATION_SPEED = 100; // ms между кадрами
 let lastFrameTime = performance.now();
 let deltaTime = 0;
 
+// Система сохранения
+let gameSave = null;
+let saveIndicatorVisible = false;
+let saveIndicatorTimer = 0;
+const SAVE_INDICATOR_DURATION = 120; // 2 секунды при 60 FPS
+
 // Добавляем в раздел с другими переменными
 let enemyFrames = {
     standard1: [],
@@ -156,6 +162,97 @@ function resetStartButton() {
   console.log("Кнопка 'Начать игру' восстановлена");
 }
 
+// Сохранение игры
+function saveGame() {
+    try {
+        gameSave = {
+            coins: coins,
+            lives: lives,
+            level: level,
+            playerSpeed: player.speed,
+            timestamp: Date.now()
+        };
+        
+        localStorage.setItem('ninjaPlatformerSave', JSON.stringify(gameSave));
+        
+        // Показываем индикатор сохранения
+        showSaveIndicator();
+        
+        console.log("Игра сохранена:", gameSave);
+        return true;
+    } catch (error) {
+        console.error("Ошибка сохранения игры:", error);
+        return false;
+    }
+}
+
+// Загрузка сохранения
+function loadGame() {
+    const saveData = localStorage.getItem('ninjaPlatformerSave');
+    if (saveData) {
+        try {
+            gameSave = JSON.parse(saveData);
+            return true;
+        } catch (error) {
+            console.error("Ошибка загрузки сохранения:", error);
+            return false;
+        }
+    }
+    return false;
+}
+
+// Показать индикатор сохранения
+function showSaveIndicator() {
+    saveIndicatorVisible = true;
+    saveIndicatorTimer = SAVE_INDICATOR_DURATION;
+    
+    // Создаем или обновляем индикатор
+    let saveIndicator = document.getElementById('saveIndicator');
+    if (!saveIndicator) {
+        saveIndicator = document.createElement('div');
+        saveIndicator.id = 'saveIndicator';
+        saveIndicator.className = 'save-indicator';
+        saveIndicator.textContent = 'Игра сохранена!';
+        document.querySelector('.game-container').appendChild(saveIndicator);
+    }
+    
+    saveIndicator.classList.remove('hidden');
+}
+
+// Обновление индикатора сохранения
+function updateSaveIndicator() {
+    if (saveIndicatorVisible) {
+        saveIndicatorTimer--;
+        if (saveIndicatorTimer <= 0) {
+            saveIndicatorVisible = false;
+            const saveIndicator = document.getElementById('saveIndicator');
+            if (saveIndicator) {
+                saveIndicator.classList.add('hidden');
+            }
+        }
+    }
+}
+
+// Проверка наличия сохранения и обновление кнопки
+function updateContinueButton() {
+    const continueButton = document.getElementById('continueButton');
+    const startButtonText = document.getElementById('startButtonText');
+    
+    console.log("Обновление кнопки продолжения...");
+    
+    // Перезагружаем сохранение
+    const hasSave = loadGame();
+    
+    if (hasSave && gameSave) {
+        console.log("Сохранение найдено, показываем кнопку 'Продолжить'");
+        if (continueButton) continueButton.classList.remove('hidden');
+        if (startButtonText) startButtonText.textContent = "Новая игра";
+    } else {
+        console.log("Сохранение не найдено, скрываем кнопку 'Продолжить'");
+        if (continueButton) continueButton.classList.add('hidden');
+        if (startButtonText) startButtonText.textContent = "Начать игру";
+    }
+}
 // Инициализация аудио контекста
 function initializeAudio() {
   if (audioInitialized) return;
@@ -1439,6 +1536,8 @@ function init() {
   }
 
   console.log("Инициализация игры...");
+
+  saveGame();
 
   // ПОКАЗЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ НАЧАЛЕ ИГРЫ
   const uiOverlay = document.querySelector(".ui-overlay");
@@ -2741,7 +2840,8 @@ function update() {
   if (gameState === "preload" || gameState === "menu") {
     return;
   }
-
+  
+  updateSaveIndicator();
   // Обработка паузы - добавляем сенсорную кнопку паузы если нужно
   let pausePressed = keys["Escape"] || keys["KeyP"];
   // Проверяем паузу на геймпаде
@@ -3033,6 +3133,11 @@ startButton.addEventListener("click", async () => {
   if (isGameLoading) return;
   isGameLoading = true;
 
+  // СБРОС СОХРАНЕНИЯ ПРИ НОВОЙ ИГРЕ
+    localStorage.removeItem('ninjaPlatformerSave');
+    gameSave = null;
+    updateContinueButton();
+
   // Показываем индикатор загрузки
   const startButtonText = document.getElementById("startButtonText");
   const startButtonLoader = document.getElementById("startButtonLoader");
@@ -3151,7 +3256,7 @@ restartPauseButton.addEventListener("click", () => {
   level = 1;
   player.speed = 8;
   gameState = "playing";
-  // СКРЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ РЕСТАРТЕ (ОНИ ПОКАЖУТСЯ В init())
+  // Скрываем UI элементы
   const uiOverlay = document.querySelector(".ui-overlay");
   const gamepadStatus = document.getElementById("gamepadStatus");
   if (uiOverlay) uiOverlay.classList.add("hidden");
@@ -3177,9 +3282,100 @@ mainMenuButton.addEventListener("click", () => {
   startScreen.classList.remove("hidden");
   gameState = "menu";
   resetStartButton();
+  updateContinueButton();
   // Останавливаем игровую музыку и включаем музыку меню
   stopMusic();
   playMusic("main_menu_theme", true, musicVolume);
+});
+
+// Кнопка "Продолжить" в главном меню
+const continueButton = document.getElementById('continueButton');
+if (continueButton) {
+    continueButton.addEventListener('click', () => {
+        if (gameSave) {
+            // Загружаем данные из сохранения
+            coins = gameSave.coins;
+            lives = gameSave.lives;
+            level = gameSave.level;
+            player.speed = gameSave.playerSpeed;
+            
+            startScreen.classList.add("hidden");
+            gameState = "playing";
+            
+            // Останавливаем музыку меню и запускаем игровую
+            stopMusic();
+            if (level >= 1 && level <= 3) {
+                playMusic("forest_theme", true, musicVolume);
+            }
+            
+            playSound("ui_click", 0.5);
+            init();
+            
+            console.log("Продолжена сохраненная игра:", gameSave);
+        }
+    });
+}
+
+// Обновляем обработчик "Новой игры" для сброса сохранения
+startButton.addEventListener("click", async () => {
+    // Защита от повторного нажатия
+    if (isGameLoading) return;
+    isGameLoading = true;
+
+    //  ДОБАВЛЯЕМ СБРОС СОХРАНЕНИЯ ПРИ НОВОЙ ИГРЕ
+    localStorage.removeItem('ninjaPlatformerSave');
+    gameSave = null;
+    updateContinueButton();
+
+    // Показываем индикатор загрузки
+    const startButtonText = document.getElementById("startButtonText");
+    const startButtonLoader = document.getElementById("startButtonLoader");
+
+    if (startButtonText) startButtonText.textContent = "Загрузка...";
+    if (startButtonLoader) startButtonLoader.classList.remove("hidden");
+
+    // Блокируем кнопку
+    startButton.disabled = true;
+
+    try {
+        console.log("Начинаем загрузку игры...");
+
+        // Проверяем, загружены ли SVG
+        if (Object.keys(svgImages).length === 0) {
+            console.log("Загружаем SVG изображения...");
+            await loadAllSVGs();
+            console.log("SVG изображения загружены успешно");
+        } else {
+            console.log("SVG уже загружены, пропускаем загрузку");
+        }
+
+        // Небольшая задержка для плавности и чтобы пользователь увидел индикатор
+        await new Promise((resolve) => setTimeout(resolve, 800));
+
+        // Переходим к игре
+        startScreen.classList.add("hidden");
+        gameState = "playing";
+
+        // Останавливаем музыку меню и запускаем игровую
+        stopMusic();
+        if (level >= 1 && level <= 3) {
+            playMusic("forest_theme", true, musicVolume);
+        }
+
+        playSound("ui_click", 0.5);
+        init();
+
+        console.log("Игра успешно запущена");
+    } catch (error) {
+        console.error("Ошибка загрузки игры:", error);
+        // Восстанавливаем кнопку при ошибке
+        resetStartButton();
+        if (errorMessageElement) {
+            errorMessageElement.textContent =
+                "Ошибка загрузки. Попробуйте обновить страницу.";
+            errorMessageElement.classList.remove("hidden");
+        }
+    }
 });
 
 // Слушатели событий клавиатуры
@@ -3213,11 +3409,13 @@ setInterval(handleGamepad, 100);
 Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations()])
   .then(() => {
     console.log("Все ресурсы загружены, ожидаем пользователя...");
+    updateContinueButton();
     // Только запускаем игровой цикл, но не инициализируем игру
     loadCharacterAnimations();
     gameLoop();
   })
   .catch((error) => {
     console.log("Запуск с заглушками из-за ошибки загрузки:", error);
+    updateContinueButton();
     gameLoop();
   });
