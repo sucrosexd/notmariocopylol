@@ -84,6 +84,19 @@ let savedMovement = {
   gamepadX: 0,
 };
 
+let hpSystem = {
+    currentHp: 150,
+    maxHp: 150,
+    displayHp: 150, // Текущее отображаемое значение для анимации
+    hpFrames: {}, // Загруженные SVG для HP
+    animationSpeed: 2, // Скорость анимации уменьшения HP
+    isAnimating: false,
+    isLevelUp: false,
+    targetHp: 150,
+    levelUpAnimationSpeed: 1,
+    previousMaxHp: 150
+};
+
 // Система анимации персонажа
 let characterFrames = {
   idle: null,
@@ -424,6 +437,189 @@ function createFallbackCoinImage() {
   const img = new Image();
   img.src = canvas.toDataURL();
   return img;
+}
+
+// Загрузка анимаций HP
+async function loadHpAnimations() {
+    console.log("Начинаем загрузку анимаций HP...");
+
+    try {
+        // ✅ ЗАГРУЖАЕМ ВСЕ SVG ДЛЯ HP
+        const hpFrames = {};
+
+        // HP 3
+        hpFrames.hp3 = {
+            full: await loadImage('assets/images/elements/hp/hp3/hp-3-full.svg')
+                .catch(err => createFallbackHpImage(3, 'full')),
+            hp2: await loadImage('assets/images/elements/hp/hp3/hp-3-2.svg')
+                .catch(err => createFallbackHpImage(3, 'hp2')),
+            hp1: await loadImage('assets/images/elements/hp/hp3/hp-3-1.svg')
+                .catch(err => createFallbackHpImage(3, 'hp1')),
+            died: await loadImage('assets/images/elements/hp/hp3/hp-3-died.svg')
+                .catch(err => createFallbackHpImage(3, 'died'))
+        };
+
+        // HP 4
+        hpFrames.hp4 = {
+            full: await loadImage('assets/images/elements/hp/hp4/hp-4-full.svg')
+                .catch(err => createFallbackHpImage(4, 'full')),
+            hp3: await loadImage('assets/images/elements/hp/hp4/hp-4-3.svg')
+                .catch(err => createFallbackHpImage(4, 'hp3')),
+            hp2: await loadImage('assets/images/elements/hp/hp4/hp-4-2.svg')
+                .catch(err => createFallbackHpImage(4, 'hp2')),
+            hp1: await loadImage('assets/images/elements/hp/hp4/hp-4-1.svg')
+                .catch(err => createFallbackHpImage(4, 'hp1')),
+            died: await loadImage('assets/images/elements/hp/hp4/hp-4-died.svg')
+                .catch(err => createFallbackHpImage(4, 'died'))
+        };
+
+        // HP 5
+        hpFrames.hp5 = {
+            full: await loadImage('assets/images/elements/hp/hp5/hp-5-full.svg')
+                .catch(err => createFallbackHpImage(5, 'full')),
+            hp4: await loadImage('assets/images/elements/hp/hp5/hp-5-4.svg')
+                .catch(err => createFallbackHpImage(5, 'hp4')),
+            hp3: await loadImage('assets/images/elements/hp/hp5/hp-5-3.svg')
+                .catch(err => createFallbackHpImage(5, 'hp3')),
+            hp2: await loadImage('assets/images/elements/hp/hp5/hp-5-2.svg')
+                .catch(err => createFallbackHpImage(5, 'hp2')),
+            hp1: await loadImage('assets/images/elements/hp/hp5/hp-5-1.svg')
+                .catch(err => createFallbackHpImage(5, 'hp1')),
+            died: await loadImage('assets/images/elements/hp/hp5/hp-5-died.svg')
+                .catch(err => createFallbackHpImage(5, 'died'))
+        };
+
+        // HP 6
+        hpFrames.hp6 = {
+            full: await loadImage('assets/images/elements/hp/hp6/hp-6-full.svg')
+                .catch(err => createFallbackHpImage(6, 'full')),
+            hp5: await loadImage('assets/images/elements/hp/hp6/hp-6-5.svg')
+                .catch(err => createFallbackHpImage(6, 'hp5')),
+            hp4: await loadImage('assets/images/elements/hp/hp6/hp-6-4.svg')
+                .catch(err => createFallbackHpImage(6, 'hp4')),
+            hp3: await loadImage('assets/images/elements/hp/hp6/hp-6-3.svg')
+                .catch(err => createFallbackHpImage(6, 'hp3')),
+            hp2: await loadImage('assets/images/elements/hp/hp6/hp-6-2.svg')
+                .catch(err => createFallbackHpImage(6, 'hp2')),
+            hp1: await loadImage('assets/images/elements/hp/hp6/hp-6-1.svg')
+                .catch(err => createFallbackHpImage(6, 'hp1')),
+            died: await loadImage('assets/images/elements/hp/hp6/hp-6-died.svg')
+                .catch(err => createFallbackHpImage(6, 'died'))
+        };
+
+        hpSystem.hpFrames = hpFrames;
+        console.log("Анимации HP загружены успешно!");
+        return true;
+
+    } catch (error) {
+        console.error("Ошибка загрузки анимаций HP:", error);
+        // Создаем фоллбэк анимации
+        hpSystem.hpFrames = createFallbackHpFrames();
+        return true;
+    }
+}
+
+// Создание фоллбэк изображения для HP
+function createFallbackHpImage(hpLevel, state) {
+    const canvas = document.createElement("canvas");
+    const width = 200;
+    const height = 60;
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext("2d");
+
+    // Фон
+    ctx.fillStyle = "#2C3E50";
+    ctx.fillRect(0, 0, width, height);
+
+    // Текст
+    ctx.fillStyle = "white";
+    ctx.font = "14px Arial";
+    ctx.fillText(`HP ${hpLevel} - ${state}`, 10, 30);
+
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
+}
+
+// Получение текущего кадра HP для отображения
+function getCurrentHpFrame() {
+    const hpFrames = hpSystem.hpFrames;
+    if (!hpFrames || Object.keys(hpFrames).length === 0) {
+        return null;
+    }
+
+    const displayHp = Math.floor(hpSystem.displayHp);
+    const maxHp = hpSystem.maxHp;
+
+    // ✅ ОПРЕДЕЛЯЕМ УРОВЕНЬ HP НА ОСНОВЕ МАКСИМАЛЬНОГО HP
+    let hpLevel;
+    if (maxHp <= 45) hpLevel = 3;      // 3 HP = 45 жизней (15 за единицу)
+    else if (maxHp <= 60) hpLevel = 4; // 4 HP = 60 жизней (15 за единицу)  
+    else if (maxHp <= 75) hpLevel = 5; // 5 HP = 75 жизней (15 за единицу)
+    else hpLevel = 6;                  // 6 HP = 90+ жизней (15 за единицу)
+
+    const hpPerUnit = 15; // Каждая единица HP = 15 жизней
+    const currentHpUnits = Math.ceil(displayHp / hpPerUnit);
+
+    // Получаем соответствующий фрейм
+    const levelFrames = hpFrames[`hp${hpLevel}`];
+    if (!levelFrames) return null;
+
+    // ✅ ВОЗВРАЩАЕМ НУЖНЫЙ КАДР В ЗАВИСИМОСТИ ОТ ТЕКУЩЕГО HP
+    if (displayHp <= 0) {
+        return levelFrames.died;
+    } else if (currentHpUnits >= hpLevel) {
+        return levelFrames.full;
+    } else if (currentHpUnits === hpLevel - 1 && levelFrames[`hp${hpLevel - 1}`]) {
+        return levelFrames[`hp${hpLevel - 1}`];
+    } else if (currentHpUnits === hpLevel - 2 && levelFrames[`hp${hpLevel - 2}`]) {
+        return levelFrames[`hp${hpLevel - 2}`];
+    } else if (currentHpUnits === hpLevel - 3 && levelFrames[`hp${hpLevel - 3}`]) {
+        return levelFrames[`hp${hpLevel - 3}`];
+    } else if (currentHpUnits === hpLevel - 4 && levelFrames[`hp${hpLevel - 4}`]) {
+        return levelFrames[`hp${hpLevel - 4}`];
+    } else if (currentHpUnits === 1 && levelFrames.hp1) {
+        return levelFrames.hp1;
+    } else {
+        return levelFrames.full;
+    }
+}
+
+// Создание фоллбэк фреймов для HP
+function createFallbackHpFrames() {
+    return {
+        hp3: {
+            full: createFallbackHpImage(3, 'full'),
+            hp2: createFallbackHpImage(3, 'hp2'),
+            hp1: createFallbackHpImage(3, 'hp1'),
+            died: createFallbackHpImage(3, 'died')
+        },
+        hp4: {
+            full: createFallbackHpImage(4, 'full'),
+            hp3: createFallbackHpImage(4, 'hp3'),
+            hp2: createFallbackHpImage(4, 'hp2'),
+            hp1: createFallbackHpImage(4, 'hp1'),
+            died: createFallbackHpImage(4, 'died')
+        },
+        hp5: {
+            full: createFallbackHpImage(5, 'full'),
+            hp4: createFallbackHpImage(5, 'hp4'),
+            hp3: createFallbackHpImage(5, 'hp3'),
+            hp2: createFallbackHpImage(5, 'hp2'),
+            hp1: createFallbackHpImage(5, 'hp1'),
+            died: createFallbackHpImage(5, 'died')
+        },
+        hp6: {
+            full: createFallbackHpImage(6, 'full'),
+            hp5: createFallbackHpImage(6, 'hp5'),
+            hp4: createFallbackHpImage(6, 'hp4'),
+            hp3: createFallbackHpImage(6, 'hp3'),
+            hp2: createFallbackHpImage(6, 'hp2'),
+            hp1: createFallbackHpImage(6, 'hp1'),
+            died: createFallbackHpImage(6, 'died')
+        }
+    };
 }
 
 // Загрузка анимаций персонажа
@@ -1521,9 +1717,19 @@ function createEnemies() {
   return enemies;
 }
 
-// ОБНОВЛЕННАЯ ИНИЦИАЛИЗАЦИЯ ИГРЫ С ПРОВЕРКОЙ ЗАГРУЗКИ SVG
+// ПОЛНАЯ ФУНКЦИЯ ИНИЦИАЛИЗАЦИИ ИГРЫ С HP СИСТЕМОЙ И СОХРАНЕНИЕМ
 function init() {
   loadCharacterAnimations();
+
+  // ✅ ИНИЦИАЛИЗИРУЕМ HP СИСТЕМУ ПРИ НАЧАЛЕ ИГРЫ
+  if (level === 1) {
+      hpSystem.currentHp = 45; // 3 HP × 15
+      hpSystem.maxHp = 45;
+      hpSystem.displayHp = 45;
+      hpSystem.isAnimating = false;
+      hpSystem.isLevelUp = false;
+      console.log("HP система инициализирована: 3 HP (45 жизней)");
+  }
 
   // ПРОВЕРЯЕМ, ЧТО SVG ЗАГРУЖЕНЫ
   if (Object.keys(svgImages).length === 0) {
@@ -1536,8 +1742,6 @@ function init() {
   }
 
   console.log("Инициализация игры...");
-
-  saveGame();
 
   // ПОКАЗЫВАЕМ UI ЭЛЕМЕНТЫ ПРИ НАЧАЛЕ ИГРЫ
   const uiOverlay = document.querySelector(".ui-overlay");
@@ -1685,6 +1889,9 @@ function init() {
 
   // Обновляем отображение цели уровня
   updateLevelGoalDisplay();
+
+  // ✅ СОХРАНЯЕМ ИГРУ (ВАЖНО - НЕ УДАЛЯТЬ!)
+  saveGame();
 
   // Сброс анимационных переменных
   isFacingRight = true;
@@ -1874,6 +2081,38 @@ function updateCoinAnimations() {
       }
     }
   }
+}
+
+// Обновление анимации HP
+function updateHpAnimation() {
+    if (hpSystem.isAnimating) {
+        if (hpSystem.isLevelUp) {
+            // ✅ АНИМАЦИЯ ПОВЫШЕНИЯ HP (LEVEL UP)
+            if (hpSystem.displayHp < hpSystem.targetHp) {
+                hpSystem.displayHp += hpSystem.levelUpAnimationSpeed * (deltaTime / 16);
+                
+                // Если достигли целевого значения, останавливаем анимацию
+                if (hpSystem.displayHp >= hpSystem.targetHp) {
+                    hpSystem.displayHp = hpSystem.targetHp;
+                    hpSystem.currentHp = hpSystem.targetHp; // Восстанавливаем текущее HP
+                    hpSystem.isAnimating = false;
+                    hpSystem.isLevelUp = false;
+                    console.log("Анимация повышения HP завершена");
+                }
+            }
+        } else {
+            // ✅ АНИМАЦИЯ УМЕНЬШЕНИЯ HP (УРОН)
+            if (hpSystem.displayHp > hpSystem.currentHp) {
+                hpSystem.displayHp -= hpSystem.animationSpeed * (deltaTime / 16);
+                
+                // Если достигли целевого значения, останавливаем анимацию
+                if (hpSystem.displayHp <= hpSystem.currentHp) {
+                    hpSystem.displayHp = hpSystem.currentHp;
+                    hpSystem.isAnimating = false;
+                }
+            }
+        }
+    }
 }
 
 // Обновление врагов на платформах
@@ -2451,29 +2690,59 @@ function createGroundCoins() {
   return groundCoins;
 }
 
-// Обработка получения урона
+// Обработка получения урона с анимацией HP
 function takeDamage() {
-  if (isInvulnerable) return;
+    if (isInvulnerable) return;
 
-  lives--;
-  livesCountElement.textContent = lives;
+    // Уменьшаем реальное HP
+    hpSystem.currentHp--;
+    lives--;
+    livesCountElement.textContent = lives;
 
-  playSound("player_damage", 0.7);
+    playSound("player_damage", 0.7);
 
-  isInvulnerable = true;
-  invulnerabilityTimer = INVULNERABILITY_DURATION;
-  damageFlashTimer = 10;
+    // ✅ ЗАПУСКАЕМ АНИМАЦИЮ УМЕНЬШЕНИЯ HP
+    hpSystem.isAnimating = true;
 
-  if (lives <= 0) {
-    gameState = "gameOver";
-    gameOverScreen.classList.remove("hidden");
-    finalScoreElement.textContent = coins;
+    isInvulnerable = true;
+    invulnerabilityTimer = INVULNERABILITY_DURATION;
+    damageFlashTimer = 10;
 
-    stopMusic();
-    playMusic("game_over", false, 0.8);
+    if (hpSystem.currentHp <= 0) {
+        gameState = "gameOver";
+        gameOverScreen.classList.remove("hidden");
+        finalScoreElement.textContent = coins;
 
-    playSound("player_death", 0.8);
-  }
+        stopMusic();
+        playMusic("game_over", false, 0.8);
+        playSound("player_death", 0.8);
+    }
+}
+
+// Функция повышения максимального HP при переходе на уровень
+function levelUpHp() {
+    const oldMaxHp = hpSystem.maxHp;
+    let newMaxHp = oldMaxHp;
+    
+    // ✅ ОПРЕДЕЛЯЕМ НОВОЕ МАКСИМАЛЬНОЕ HP ПО УРОВНЯМ
+    if (level === 5) { // После 4 уровня
+        newMaxHp = 60; // 4 HP × 15 = 60
+        console.log("Повышение HP до 4 единиц (60 HP)");
+    } else if (level === 8) { // После 7 уровня  
+        newMaxHp = 75; // 5 HP × 15 = 75
+        console.log("Повышение HP до 5 единиц (75 HP)");
+    }
+    
+    if (newMaxHp > oldMaxHp) {
+        // ✅ ЗАПУСКАЕМ АНИМАЦИЮ ПОВЫШЕНИЯ HP
+        hpSystem.previousMaxHp = oldMaxHp;
+        hpSystem.maxHp = newMaxHp;
+        hpSystem.targetHp = newMaxHp; // Целевое значение - полное HP
+        hpSystem.isLevelUp = true;
+        hpSystem.isAnimating = true;
+        
+        console.log(`Анимация повышения HP: ${oldMaxHp} → ${newMaxHp}`);
+    }
 }
 
 // Обновление системы урона
@@ -2895,6 +3164,9 @@ function update() {
   // Обновление врагов
   updateEnemies();
 
+  // ✅ ОБНОВЛЯЕМ АНИМАЦИЮ HP
+  updateHpAnimation();
+
   // ОБНОВЛЕНИЕ СИСТЕМЫ АТАКИ
   updateAttackSystem();
 
@@ -3214,6 +3486,7 @@ restartButton.addEventListener("click", () => {
 nextLevelButton.addEventListener("click", () => {
   levelCompleteScreen.classList.add("hidden");
   playSound("ui_click", 0.5);
+  levelUpHp();
   level++;
   levelCountElement.textContent = level;
   gameState = "playing";
@@ -3406,7 +3679,7 @@ window.addEventListener("resize", resizeCanvas);
 setInterval(handleGamepad, 100);
 
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
-Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations()])
+Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations(), loadHpAnimations()])
   .then(() => {
     console.log("Все ресурсы загружены, ожидаем пользователя...");
     updateContinueButton();
