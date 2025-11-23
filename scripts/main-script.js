@@ -89,7 +89,7 @@ let hpSystem = {
     maxHp: 150,
     displayHp: 150, // Текущее отображаемое значение для анимации
     hpFrames: {}, // Загруженные SVG для HP
-    animationSpeed: 2, // Скорость анимации уменьшения HP
+    animationSpeed: 0.5, // Скорость анимации уменьшения HP
     isAnimating: false,
     isLevelUp: false,
     targetHp: 150,
@@ -549,40 +549,53 @@ function getCurrentHpFrame() {
         return null;
     }
 
-    const displayHp = Math.floor(hpSystem.displayHp);
+    const displayHp = hpSystem.displayHp;
     const maxHp = hpSystem.maxHp;
-
-    // ✅ ОПРЕДЕЛЯЕМ УРОВЕНЬ HP НА ОСНОВЕ МАКСИМАЛЬНОГО HP
+    
+    // ✅ ОПРЕДЕЛЯЕМ ТЕКУЩИЙ УРОВЕНЬ HP
     let hpLevel;
-    if (maxHp <= 45) hpLevel = 3;      // 3 HP = 45 жизней (15 за единицу)
-    else if (maxHp <= 60) hpLevel = 4; // 4 HP = 60 жизней (15 за единицу)  
-    else if (maxHp <= 75) hpLevel = 5; // 5 HP = 75 жизней (15 за единицу)
-    else hpLevel = 6;                  // 6 HP = 90+ жизней (15 за единицу)
+    if (maxHp <= 3) hpLevel = 3;
+    else if (maxHp <= 4) hpLevel = 4;
+    else if (maxHp <= 5) hpLevel = 5;
+    else hpLevel = 6;
 
-    const hpPerUnit = 15; // Каждая единица HP = 15 жизней
-    const currentHpUnits = Math.ceil(displayHp / hpPerUnit);
-
-    // Получаем соответствующий фрейм
     const levelFrames = hpFrames[`hp${hpLevel}`];
-    if (!levelFrames) return null;
+    if (!levelFrames) {
+        return null;
+    }
 
-    // ✅ ВОЗВРАЩАЕМ НУЖНЫЙ КАДР В ЗАВИСИМОСТИ ОТ ТЕКУЩЕГО HP
-    if (displayHp <= 0) {
+    const currentLives = Math.floor(displayHp);
+    
+    if (currentLives <= 0) {
         return levelFrames.died;
-    } else if (currentHpUnits >= hpLevel) {
-        return levelFrames.full;
-    } else if (currentHpUnits === hpLevel - 1 && levelFrames[`hp${hpLevel - 1}`]) {
-        return levelFrames[`hp${hpLevel - 1}`];
-    } else if (currentHpUnits === hpLevel - 2 && levelFrames[`hp${hpLevel - 2}`]) {
-        return levelFrames[`hp${hpLevel - 2}`];
-    } else if (currentHpUnits === hpLevel - 3 && levelFrames[`hp${hpLevel - 3}`]) {
-        return levelFrames[`hp${hpLevel - 3}`];
-    } else if (currentHpUnits === hpLevel - 4 && levelFrames[`hp${hpLevel - 4}`]) {
-        return levelFrames[`hp${hpLevel - 4}`];
-    } else if (currentHpUnits === 1 && levelFrames.hp1) {
-        return levelFrames.hp1;
-    } else {
-        return levelFrames.full;
+    }
+    
+    // ✅ ПРАВИЛЬНЫЕ ПОРОГИ ДЛЯ КАЖДОГО УРОВНЯ HP
+    if (hpLevel === 6) {
+        if (currentLives >= 6) return levelFrames.full;
+        else if (currentLives >= 5) return levelFrames.hp5 || levelFrames.full;
+        else if (currentLives >= 4) return levelFrames.hp4 || levelFrames.full;
+        else if (currentLives >= 3) return levelFrames.hp3 || levelFrames.full;
+        else if (currentLives >= 2) return levelFrames.hp2 || levelFrames.full;
+        else return levelFrames.hp1 || levelFrames.full;
+    }
+    else if (hpLevel === 5) {
+        if (currentLives >= 5) return levelFrames.full;
+        else if (currentLives >= 4) return levelFrames.hp4 || levelFrames.full;
+        else if (currentLives >= 3) return levelFrames.hp3 || levelFrames.full;
+        else if (currentLives >= 2) return levelFrames.hp2 || levelFrames.full;
+        else return levelFrames.hp1 || levelFrames.full;
+    }
+    else if (hpLevel === 4) {
+        if (currentLives >= 4) return levelFrames.full;
+        else if (currentLives >= 3) return levelFrames.hp3 || levelFrames.full;
+        else if (currentLives >= 2) return levelFrames.hp2 || levelFrames.full;
+        else return levelFrames.hp1 || levelFrames.full;
+    }
+    else {
+        if (currentLives >= 3) return levelFrames.full;
+        else if (currentLives >= 2) return levelFrames.hp2 || levelFrames.full;
+        else return levelFrames.hp1 || levelFrames.full;
     }
 }
 
@@ -1721,14 +1734,18 @@ function createEnemies() {
 function init() {
   loadCharacterAnimations();
 
-  // ✅ ИНИЦИАЛИЗИРУЕМ HP СИСТЕМУ ПРИ НАЧАЛЕ ИГРЫ
+  // ✅ ИНИЦИАЛИЗИРУЕМ HP СИСТЕМУ КАК 3 ЖИЗНИ
   if (level === 1) {
-      hpSystem.currentHp = 45; // 3 HP × 15
-      hpSystem.maxHp = 45;
-      hpSystem.displayHp = 45;
-      hpSystem.isAnimating = false;
-      hpSystem.isLevelUp = false;
-      console.log("HP система инициализирована: 3 HP (45 жизней)");
+    hpSystem.currentHp = 3;    // 3 жизни
+    hpSystem.maxHp = 3;        // 3 максимум
+    hpSystem.displayHp = 3;    // 3 для отображения
+    hpSystem.isAnimating = false;
+    hpSystem.isLevelUp = false;
+    console.log("HP система инициализирована: 3 жизни");
+    
+    // Проверим какой кадр загружается
+    const testFrame = getCurrentHpFrame();
+    console.log("Initial HP frame:", testFrame);
   }
 
   // ПРОВЕРЯЕМ, ЧТО SVG ЗАГРУЖЕНЫ
@@ -2087,29 +2104,33 @@ function updateCoinAnimations() {
 function updateHpAnimation() {
     if (hpSystem.isAnimating) {
         if (hpSystem.isLevelUp) {
-            // ✅ АНИМАЦИЯ ПОВЫШЕНИЯ HP (LEVEL UP)
+            // ✅ АНИМАЦИЯ ПОВЫШЕНИЯ HP
             if (hpSystem.displayHp < hpSystem.targetHp) {
-                hpSystem.displayHp += hpSystem.levelUpAnimationSpeed * (deltaTime / 16);
+                hpSystem.displayHp += hpSystem.levelUpAnimationSpeed;
                 
-                // Если достигли целевого значения, останавливаем анимацию
                 if (hpSystem.displayHp >= hpSystem.targetHp) {
                     hpSystem.displayHp = hpSystem.targetHp;
-                    hpSystem.currentHp = hpSystem.targetHp; // Восстанавливаем текущее HP
+                    hpSystem.currentHp = hpSystem.targetHp;
                     hpSystem.isAnimating = false;
                     hpSystem.isLevelUp = false;
-                    console.log("Анимация повышения HP завершена");
                 }
             }
         } else {
-            // ✅ АНИМАЦИЯ УМЕНЬШЕНИЯ HP (УРОН)
-            if (hpSystem.displayHp > hpSystem.currentHp) {
-                hpSystem.displayHp -= hpSystem.animationSpeed * (deltaTime / 16);
+            // ✅ АНИМАЦИЯ УМЕНЬШЕНИЯ HP
+            if (Math.abs(hpSystem.displayHp - hpSystem.currentHp) > 0.1) {
+                if (hpSystem.displayHp > hpSystem.currentHp) {
+                    hpSystem.displayHp -= hpSystem.animationSpeed;
+                } else {
+                    hpSystem.displayHp += hpSystem.animationSpeed;
+                }
                 
-                // Если достигли целевого значения, останавливаем анимацию
-                if (hpSystem.displayHp <= hpSystem.currentHp) {
+                if (Math.abs(hpSystem.displayHp - hpSystem.currentHp) <= 0.1) {
                     hpSystem.displayHp = hpSystem.currentHp;
                     hpSystem.isAnimating = false;
                 }
+            } else {
+                hpSystem.displayHp = hpSystem.currentHp;
+                hpSystem.isAnimating = false;
             }
         }
     }
@@ -2659,6 +2680,24 @@ function draw() {
 
   // Восстанавливаем состояние контекста
   ctx.restore();
+
+  // ✅ ОТРИСОВКА HP ШКАЛЫ В ЛЕВОМ ВЕРХНЕМ УГЛУ
+  const currentHpFrame = getCurrentHpFrame();
+  if (currentHpFrame) {
+      const hpX = 20;
+      const hpY = 20;
+      const hpWidth = 200;
+      const hpHeight = 60;
+      
+      ctx.drawImage(currentHpFrame, hpX, hpY, hpWidth, hpHeight);
+      
+      // ✅ ВРЕМЕННАЯ ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
+      ctx.fillStyle = "white";
+      ctx.font = "14px Arial";
+      ctx.fillText(`Display: ${Math.floor(hpSystem.displayHp)}`, hpX + 210, hpY + 20);
+      ctx.fillText(`Current: ${hpSystem.currentHp}`, hpX + 210, hpY + 40);
+      ctx.fillText(`Animating: ${hpSystem.isAnimating}`, hpX + 210, hpY + 60);
+  }
 }
 
 function createGroundCoins() {
@@ -2694,15 +2733,18 @@ function createGroundCoins() {
 function takeDamage() {
     if (isInvulnerable) return;
 
-    // Уменьшаем реальное HP
-    hpSystem.currentHp--;
-    lives--;
+    // Уменьшаем реальное HP (теперь это жизни)
+    hpSystem.currentHp -= 1;
+    lives = hpSystem.currentHp * 15;
     livesCountElement.textContent = lives;
 
     playSound("player_damage", 0.7);
 
     // ✅ ЗАПУСКАЕМ АНИМАЦИЮ УМЕНЬШЕНИЯ HP
     hpSystem.isAnimating = true;
+    hpSystem.isLevelUp = false;
+
+    playSound("player_damage", 0.7);
 
     isInvulnerable = true;
     invulnerabilityTimer = INVULNERABILITY_DURATION;
@@ -2719,30 +2761,56 @@ function takeDamage() {
     }
 }
 
-// Функция повышения максимального HP при переходе на уровень
-function levelUpHp() {
+// ✅ ФУНКЦИИ ПРИНУДИТЕЛЬНОГО ПОВЫШЕНИЯ HP (ТЕСТОВЫЕ)
+function forceHpLevelUpTo4() {
+    // ✅ ПОВЫШЕНИЕ ДО 4 HP
     const oldMaxHp = hpSystem.maxHp;
-    let newMaxHp = oldMaxHp;
+    const oldCurrentHp = hpSystem.currentHp;
     
-    // ✅ ОПРЕДЕЛЯЕМ НОВОЕ МАКСИМАЛЬНОЕ HP ПО УРОВНЯМ
-    if (level === 5) { // После 4 уровня
-        newMaxHp = 60; // 4 HP × 15 = 60
-        console.log("Повышение HP до 4 единиц (60 HP)");
-    } else if (level === 8) { // После 7 уровня  
-        newMaxHp = 75; // 5 HP × 15 = 75
-        console.log("Повышение HP до 5 единиц (75 HP)");
-    }
+    hpSystem.maxHp = 4;
+    hpSystem.currentHp = 4;
+    hpSystem.targetHp = 4;
+    hpSystem.isLevelUp = true;
+    hpSystem.isAnimating = true;
     
-    if (newMaxHp > oldMaxHp) {
-        // ✅ ЗАПУСКАЕМ АНИМАЦИЮ ПОВЫШЕНИЯ HP
-        hpSystem.previousMaxHp = oldMaxHp;
-        hpSystem.maxHp = newMaxHp;
-        hpSystem.targetHp = newMaxHp; // Целевое значение - полное HP
-        hpSystem.isLevelUp = true;
-        hpSystem.isAnimating = true;
-        
-        console.log(`Анимация повышения HP: ${oldMaxHp} → ${newMaxHp}`);
-    }
+    lives = hpSystem.currentHp * 15;
+    livesCountElement.textContent = lives;
+    
+    playSound("ui_click", 0.6);
+}
+
+function forceHpLevelUpTo5() {
+    // ✅ ПОВЫШЕНИЕ ДО 5 HP
+    const oldMaxHp = hpSystem.maxHp;
+    const oldCurrentHp = hpSystem.currentHp;
+    
+    hpSystem.maxHp = 5;
+    hpSystem.currentHp = 5;
+    hpSystem.targetHp = 5;
+    hpSystem.isLevelUp = true;
+    hpSystem.isAnimating = true;
+    
+    lives = hpSystem.currentHp * 15;
+    livesCountElement.textContent = lives;
+    
+    playSound("ui_click", 0.6);
+}
+
+function forceHpLevelUpTo6() {
+    // ✅ ПОВЫШЕНИЕ ДО 6 HP
+    const oldMaxHp = hpSystem.maxHp;
+    const oldCurrentHp = hpSystem.currentHp;
+    
+    hpSystem.maxHp = 6;
+    hpSystem.currentHp = 6;
+    hpSystem.targetHp = 6;
+    hpSystem.isLevelUp = true;
+    hpSystem.isAnimating = true;
+    
+    lives = hpSystem.currentHp * 15;
+    livesCountElement.textContent = lives;
+    
+    playSound("ui_click", 0.6);
 }
 
 // Обновление системы урона
@@ -3147,6 +3215,9 @@ function update() {
   // Обновление системы урона (всегда, даже в паузе для анимации)
   updateDamageSystem();
 
+  // ✅ ОБНОВЛЯЕМ АНИМАЦИЮ HP
+  updateHpAnimation();
+  
   if (gameState !== "playing") return;
 
   // Обновление анимации персонажа (использует deltaTime)
@@ -3164,8 +3235,6 @@ function update() {
   // Обновление врагов
   updateEnemies();
 
-  // ✅ ОБНОВЛЯЕМ АНИМАЦИЮ HP
-  updateHpAnimation();
 
   // ОБНОВЛЕНИЕ СИСТЕМЫ АТАКИ
   updateAttackSystem();
@@ -3359,6 +3428,17 @@ function gameLoop() {
 // Обработчики событий клавиатуры
 function keyDownHandler(e) {
   keys[e.code] = true;
+  
+  // ✅ ТЕСТОВЫЕ КЛАВИШИ ДЛЯ ПОВЫШЕНИЯ HP
+  if (e.code === "KeyT") {
+      forceHpLevelUpTo4();      // T - 4 HP
+  }
+  if (e.code === "KeyY") {
+      forceHpLevelUpTo5();   // Y - 5 HP
+  }
+  if (e.code === "KeyU") {
+      forceHpLevelUpTo6();   // U - 6 HP
+  }
 }
 
 function keyUpHandler(e) {
