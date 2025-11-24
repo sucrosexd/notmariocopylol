@@ -13,7 +13,6 @@ const resumeButton = document.getElementById("resumeButton");
 const restartPauseButton = document.getElementById("restartPauseButton");
 const mainMenuButton = document.getElementById("mainMenuButton");
 const coinCountElement = document.getElementById("coinCount");
-const livesCountElement = document.getElementById("livesCount");
 const levelCountElement = document.getElementById("levelCount");
 const finalScoreElement = document.getElementById("finalScore");
 const levelCoinsElement = document.getElementById("levelCoins");
@@ -29,7 +28,6 @@ const sfxVolumeSlider = document.getElementById("sfxVolume");
 // Игровые переменные
 let gameState = "preload"; // preload, menu, playing, paused, gameOver, levelComplete
 let coins = 0;
-let lives = 150;
 let level = 1;
 let gamepad = null;
 let isGamepadConnected = false;
@@ -180,7 +178,6 @@ function saveGame() {
     try {
         gameSave = {
             coins: coins,
-            lives: lives,
             level: level,
             playerSpeed: player.speed,
             timestamp: Date.now()
@@ -542,7 +539,7 @@ function createFallbackHpImage(hpLevel, state) {
     return img;
 }
 
-// Получение текущего кадра HP для отображения
+// ✅ ИСПРАВЛЕННАЯ ОТРИСОВКА HP С СОХРАНЕНИЕМ ПРОПОРЦИЙ
 function getCurrentHpFrame() {
     const hpFrames = hpSystem.hpFrames;
     if (!hpFrames || Object.keys(hpFrames).length === 0) {
@@ -596,6 +593,43 @@ function getCurrentHpFrame() {
         if (currentLives >= 3) return levelFrames.full;
         else if (currentLives >= 2) return levelFrames.hp2 || levelFrames.full;
         else return levelFrames.hp1 || levelFrames.full;
+    }
+}
+
+// ✅ ДОБАВЛЯЕМ НОВУЮ ФУНКЦИЮ ДЛЯ ПРАВИЛЬНОЙ ОТРИСОВКИ HP
+function drawHpBar() {
+    const currentHpFrame = getCurrentHpFrame();
+    if (currentHpFrame) {
+        const hpX = 20; // Отступ слева
+        const hpY = 20; // Отступ сверху
+        
+        // ✅ АВТОМАТИЧЕСКОЕ ОПРЕДЕЛЕНИЕ РАЗМЕРОВ С СОХРАНЕНИЕМ ПРОПОРЦИЙ
+        const maxWidth = 200; // Максимальная ширина
+        const maxHeight = 60; // Максимальная высота
+        
+        // Получаем натуральные размеры изображения
+        const naturalWidth = currentHpFrame.naturalWidth || currentHpFrame.width;
+        const naturalHeight = currentHpFrame.naturalHeight || currentHpFrame.height;
+        
+        // Вычисляем пропорции
+        const aspectRatio = naturalWidth / naturalHeight;
+        
+        let drawWidth, drawHeight;
+        
+        if (aspectRatio > (maxWidth / maxHeight)) {
+            // Широкое изображение - ограничиваем по ширине
+            drawWidth = maxWidth;
+            drawHeight = maxWidth / aspectRatio;
+        } else {
+            // Высокое изображение - ограничиваем по высоте
+            drawHeight = maxHeight;
+            drawWidth = maxHeight * aspectRatio;
+        }
+        
+        // Центрируем по вертикали если нужно
+        const centeredY = hpY + (maxHeight - drawHeight) / 2;
+        
+        ctx.drawImage(currentHpFrame, hpX, centeredY, drawWidth, drawHeight);
     }
 }
 
@@ -1901,7 +1935,6 @@ function init() {
 
   // УБРАН СБРОС ОБЩИХ МОНЕТ: coins = 0;
   coinCountElement.textContent = coins; // Отображаем накопленные монеты
-  livesCountElement.textContent = lives;
   levelCountElement.textContent = level;
 
   // Обновляем отображение цели уровня
@@ -2681,23 +2714,8 @@ function draw() {
   // Восстанавливаем состояние контекста
   ctx.restore();
 
-  // ✅ ОТРИСОВКА HP ШКАЛЫ В ЛЕВОМ ВЕРХНЕМ УГЛУ
-  const currentHpFrame = getCurrentHpFrame();
-  if (currentHpFrame) {
-      const hpX = 20;
-      const hpY = 20;
-      const hpWidth = 200;
-      const hpHeight = 60;
-      
-      ctx.drawImage(currentHpFrame, hpX, hpY, hpWidth, hpHeight);
-      
-      // ✅ ВРЕМЕННАЯ ОТЛАДОЧНАЯ ИНФОРМАЦИЯ
-      ctx.fillStyle = "white";
-      ctx.font = "14px Arial";
-      ctx.fillText(`Display: ${Math.floor(hpSystem.displayHp)}`, hpX + 210, hpY + 20);
-      ctx.fillText(`Current: ${hpSystem.currentHp}`, hpX + 210, hpY + 40);
-      ctx.fillText(`Animating: ${hpSystem.isAnimating}`, hpX + 210, hpY + 60);
-  }
+  // ✅ ИСПРАВЛЕННАЯ ОТРИСОВКА HP С СОХРАНЕНИЕМ ПРОПОРЦИЙ
+  drawHpBar();
 }
 
 function createGroundCoins() {
@@ -2735,8 +2753,6 @@ function takeDamage() {
 
     // Уменьшаем реальное HP (теперь это жизни)
     hpSystem.currentHp -= 1;
-    lives = hpSystem.currentHp * 15;
-    livesCountElement.textContent = lives;
 
     playSound("player_damage", 0.7);
 
@@ -2773,9 +2789,6 @@ function forceHpLevelUpTo4() {
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
     
-    lives = hpSystem.currentHp * 15;
-    livesCountElement.textContent = lives;
-    
     playSound("ui_click", 0.6);
 }
 
@@ -2790,9 +2803,6 @@ function forceHpLevelUpTo5() {
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
     
-    lives = hpSystem.currentHp * 15;
-    livesCountElement.textContent = lives;
-    
     playSound("ui_click", 0.6);
 }
 
@@ -2806,9 +2816,6 @@ function forceHpLevelUpTo6() {
     hpSystem.targetHp = 6;
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
-    
-    lives = hpSystem.currentHp * 15;
-    livesCountElement.textContent = lives;
     
     playSound("ui_click", 0.6);
 }
@@ -3545,7 +3552,6 @@ startButton.addEventListener("click", async () => {
 restartButton.addEventListener("click", () => {
   gameOverScreen.classList.add("hidden");
   playSound("ui_click", 0.5);
-  lives = 150;
   coins = 0;
   level = 1;
   player.speed = 8;
@@ -3604,7 +3610,6 @@ resumeButton.addEventListener("click", () => {
 restartPauseButton.addEventListener("click", () => {
   pauseScreen.classList.add("hidden");
   playSound("ui_click", 0.5);
-  lives = 150;
   coins = 0;
   level = 1;
   player.speed = 8;
@@ -3648,7 +3653,6 @@ if (continueButton) {
         if (gameSave) {
             // Загружаем данные из сохранения
             coins = gameSave.coins;
-            lives = gameSave.lives;
             level = gameSave.level;
             player.speed = gameSave.playerSpeed;
             

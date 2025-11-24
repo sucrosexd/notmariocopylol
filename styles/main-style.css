@@ -66,6 +66,33 @@ body {
     opacity: 0.7;
 }
 
+/* ✅ ТОЛЬКО БЛОК С МОНЕТАМИ - ОТДЕЛЬНЫЙ КЛАСС */
+.coins-panel {
+    margin-top: 70px !important;
+    margin-left: 20px !important;
+    align-self: flex-start;
+}
+
+/* ✅ ОСТАЛЬНЫЕ БЛОКИ - В ВЕРХНЕМ ПРАВОМ УГЛУ */
+.goal-panel,
+.level-panel {
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+    align-self: flex-start;
+}
+
+/* ✅ ГРУППИРУЕМ ПРАВЫЕ БЛОКИ В КОНТЕЙНЕР */
+.ui-overlay {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+}
+
+.ui-overlay .goal-panel,
+.ui-overlay .level-panel {
+    margin-bottom: 5px; /* Небольшой отступ между правыми блоками */
+}
+
 .screen {
     position: absolute;
     top: 0;
