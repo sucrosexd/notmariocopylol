@@ -3572,7 +3572,7 @@ restartButton.addEventListener("click", () => {
 nextLevelButton.addEventListener("click", () => {
   levelCompleteScreen.classList.add("hidden");
   playSound("ui_click", 0.5);
-  levelUpHp();
+  // levelUpHp();
   level++;
   levelCountElement.textContent = level;
   gameState = "playing";
