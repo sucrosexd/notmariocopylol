@@ -95,6 +95,10 @@ let hpSystem = {
     previousMaxHp: 150
 };
 
+let damageAnimationActive = false;
+let damageAnimationTimer = 0;
+const DAMAGE_ANIMATION_DURATION = 15;
+
 // Система анимации персонажа
 let characterFrames = {
   idle: null,
@@ -103,6 +107,7 @@ let characterFrames = {
   fall: null, // отдельная анимация падения
   attack: null, // удар в статике
   jump_attack: null, // удар в прыжке
+  damaged: null
 };
 let currentAnimation = "idle";
 let animationFrame = 0;
@@ -724,7 +729,7 @@ async function loadCharacterAnimations() {
       return createFallbackImage(80, 120, "#96CEB4");
     });
 
-    // ЗАГРУЗКА АНИМАЦИЙ АТАКИ
+    // Загрузка анимаций атаки
     const attackPromise = loadImage(
       "assets/animations/characters/ninja/attacking/ninja_afk_attack.svg",
     ).catch((err) => {
@@ -739,6 +744,14 @@ async function loadCharacterAnimations() {
       return createFallbackImage(80, 120, "#FF0000");
     });
 
+    // ✅ ЗАГРУЗКА АНИМАЦИИ ПОЛУЧЕНИЯ УРОНА
+    const damagedPromise = loadImage(
+      "assets/animations/characters/ninja/damaged/ninja_damaged.svg",
+    ).catch((err) => {
+      console.log("ninja_damaged - Ошибка загрузки");
+      return createFallbackImage(80, 120, "#FF0000");
+    });
+
     // Ждем загрузку всех анимаций
     characterFrames.idle = await idlePromise;
     characterFrames.run = await Promise.all([
@@ -748,10 +761,9 @@ async function loadCharacterAnimations() {
     ]);
     characterFrames.jump = await Promise.all([jump1Promise, kolobokPromise]);
     characterFrames.fall = await fallPromise;
-
-    // ЗАГРУЖАЕМ АНИМАЦИИ АТАКИ
     characterFrames.attack = await attackPromise;
     characterFrames.jump_attack = await jumpAttackPromise;
+    characterFrames.damaged = await damagedPromise; // ✅ НОВОЕ
 
     console.log("Все анимации загружены!");
     console.log(`  - Idle: ${characterFrames.idle ? "OK" : "FAIL"}`);
@@ -759,9 +771,8 @@ async function loadCharacterAnimations() {
     console.log(`  - Jump frames: ${characterFrames.jump.length}/2`);
     console.log(`  - Fall: ${characterFrames.fall ? "OK" : "FAIL"}`);
     console.log(`  - Attack: ${characterFrames.attack ? "OK" : "FAIL"}`);
-    console.log(
-      `  - Jump Attack: ${characterFrames.jump_attack ? "OK" : "FAIL"}`,
-    );
+    console.log(`  - Jump Attack: ${characterFrames.jump_attack ? "OK" : "FAIL"}`);
+    console.log(`  - Damaged: ${characterFrames.damaged ? "OK" : "FAIL"}`); // ✅ НОВОЕ
 
     return true;
   } catch (error) {
@@ -780,6 +791,7 @@ async function loadCharacterAnimations() {
     characterFrames.fall = createFallbackImage(80, 120, "#96CEB4");
     characterFrames.attack = createFallbackImage(80, 120, "#FF0000");
     characterFrames.jump_attack = createFallbackImage(80, 120, "#FF0000");
+    characterFrames.damaged = createFallbackImage(80, 120, "#FF0000"); // ✅ НОВОЕ
     return true;
   }
 }
@@ -2012,14 +2024,21 @@ function drawCharacter() {
   let drawHeight = player.height;
   let yOffset = 0;
 
-  // ВЫБОР КАДРА ПО ТИПУ АНИМАЦИИ + ИНДИВИДУАЛЬНЫЕ НАСТРОЙКИ МАСШТАБА
-  if (currentAnimation === "run" && characterFrames.run.length > 0) {
+  // ✅ АНИМАЦИЯ УРОНА - УВЕЛИЧИВАЕМ РАЗМЕР
+  if (currentAnimation === "damaged" && characterFrames.damaged) {
+    currentFrame = characterFrames.damaged;
+    // ✅ УВЕЛИЧИВАЕМ РАЗМЕР АНИМАЦИИ УРОНА
+    drawWidth = player.width * 1.4;    // Было 1.0 - УВЕЛИЧИВАЕМ НА 40%
+    drawHeight = player.height * 1.4;  // Было 1.0 - УВЕЛИЧИВАЕМ НА 40%
+    yOffset = 0;
+  }
+  // Остальные анимации
+  else if (currentAnimation === "run" && characterFrames.run.length > 0) {
     currentFrame = characterFrames.run[animationFrame];
     // Бег - стандартный размер
   } else if (currentAnimation === "jump" && characterFrames.jump.length > 0) {
     currentFrame = characterFrames.jump[animationFrame];
-
-    // ИНДИВИДУАЛЬНЫЙ МАСШТАБ ДЛЯ КАЖДОГО КАДРА ПРЫЖКА
+    
     if (animationFrame === 0) {
       // ninja_jump - УВЕЛИЧИВАЕМ
       drawWidth = player.width * 1.3;
@@ -2038,33 +2057,13 @@ function drawCharacter() {
     // ✅ ИСПРАВЛЕННАЯ ВЕРСИЯ - СОХРАНЯЕМ СТАНДАРТНЫЕ РАЗМЕРЫ
   } else if (currentAnimation === "attack" && characterFrames.attack) {
     currentFrame = characterFrames.attack;
-    // ✅ ПРАВИЛЬНОЕ МАСШТАБИРОВАНИЕ SVG 1920x1080 -> 80x120
-    const svgWidth = 1920;
-    const svgHeight = 1080;
-    const svgAspectRatio = svgWidth / svgHeight; // ≈ 1.78
-    
-    // Целевые размеры
-    const targetHeight = player.height; // 120
-    const targetWidth = targetHeight * svgAspectRatio; // ≈ 213
-    
-    drawWidth = targetWidth;  // ≈ 213px
-    drawHeight = targetHeight; // 120px
+    drawWidth = player.width * 1.3;
+    drawHeight = player.height * 1.0;
     yOffset = 0;
-  } else if (
-    currentAnimation === "jump_attack" &&
-    characterFrames.jump_attack
-  ) {
+  } else if (currentAnimation === "jump_attack" && characterFrames.jump_attack) {
     currentFrame = characterFrames.jump_attack;
-    // ✅ АНАЛОГИЧНО ДЛЯ АТАКИ В ПРЫЖКЕ
-    const svgWidth = 1920;
-    const svgHeight = 1080;
-    const svgAspectRatio = svgWidth / svgHeight;
-    
-    const targetHeight = player.height;
-    const targetWidth = targetHeight * svgAspectRatio;
-    
-    drawWidth = targetWidth;
-    drawHeight = targetHeight;
+    drawWidth = player.width * 1.3;
+    drawHeight = player.height * 1.0;
   } else {
     currentFrame = characterFrames.idle;
     // Покой - стандартный размер
@@ -2078,16 +2077,16 @@ function drawCharacter() {
   // Отрисовка
   ctx.save();
 
-  // Эффект мигания при уроне
+  // ✅ ЭФФЕКТ МИГАНИЯ ТОЛЬКО ПРИ НЕУЯЗВИМОСТИ
   if (damageFlashTimer > 0) {
     ctx.globalAlpha = 0.5;
   }
 
-  // КООРДИНАТЫ УЖЕ СКОРРЕКТИРОВАНЫ КАМЕРОЙ В ФУНКЦИИ draw()
+  // КООРДИНАТЫ
   const drawX = player.x;
-  const drawY = player.y + yOffset; 
+  const drawY = player.y + yOffset;
 
-  // Корректировка позиции для сохранения центра при изменении размера
+  // Корректировка позиции
   let adjustedX = drawX;
   let adjustedY = drawY;
 
@@ -2101,22 +2100,16 @@ function drawCharacter() {
     adjustedY = drawY - (drawHeight - player.height) / 2;
   } else if (
     currentAnimation === "attack" ||
-    currentAnimation === "jump_attack"
+    currentAnimation === "jump_attack" ||
+    currentAnimation === "damaged"
   ) {
-    // ✅ КОРРЕКТИРОВКА ТОЛЬКО ПО ВЕРТИКАЛИ, ГОРИЗОНТАЛЬНО - БЕЗ ИЗМЕНЕНИЙ
-    // adjustedX = drawX - (drawWidth - player.width) / 2; // ⬅ УБИРАЕМ ЭТО!
-    adjustedX = drawX; // ⬅ ОСТАВЛЯЕМ ИСХОДНУЮ ПОЗИЦИЮ
-    adjustedY = drawY - (drawHeight - player.height) / 2; // Центрируем по вертикали если нужно
+    adjustedX = drawX - (drawWidth - player.width) / 2;
+    adjustedY = drawY - (drawHeight - player.height) / 2;
   }
 
-  // ✅ ИСПРАВЛЕННАЯ ЛОГИКА ОТРАЖЕНИЯ ДЛЯ АТАКИ
+  // Отражаем если смотрит влево
   if (player.direction === -1) {
-    // Для атаки используем player.width вместо drawWidth для правильного позиционирования
-    const baseWidth = (currentAnimation === "attack" || currentAnimation === "jump_attack") 
-        ? player.width  // Используем оригинальную ширину для позиционирования
-        : drawWidth;    // Для других анимаций - как было
-    
-    ctx.translate(adjustedX + baseWidth, adjustedY);
+    ctx.translate(adjustedX + drawWidth, adjustedY);
     ctx.scale(-1, 1);
     ctx.drawImage(currentFrame, 0, 0, drawWidth, drawHeight);
   } else {
@@ -2774,20 +2767,27 @@ function createGroundCoins() {
 function takeDamage() {
     if (isInvulnerable) return;
 
-    // Уменьшаем реальное HP (теперь это жизни)
+    // Уменьшаем HP
     hpSystem.currentHp -= 1;
+
+    // ✅ ЗАПУСКАЕМ ОДНОРАЗОВУЮ АНИМАЦИЮ УРОНА
+    damageAnimationActive = true;
+    damageAnimationTimer = DAMAGE_ANIMATION_DURATION;
+    
+    // Устанавливаем анимацию damaged для немедленного отображения
+    currentAnimation = "damaged";
+    animationFrame = 0;
+    animationTimer = 0;
 
     playSound("player_damage", 0.7);
 
-    // ✅ ЗАПУСКАЕМ АНИМАЦИЮ УМЕНЬШЕНИЯ HP
+    // Запускаем анимацию HP
     hpSystem.isAnimating = true;
     hpSystem.isLevelUp = false;
 
-    playSound("player_damage", 0.7);
-
+    // Включаем неуязвимость (отдельно от анимации)
     isInvulnerable = true;
     invulnerabilityTimer = INVULNERABILITY_DURATION;
-    damageFlashTimer = 10;
 
     if (hpSystem.currentHp <= 0) {
         gameState = "gameOver";
@@ -2798,6 +2798,8 @@ function takeDamage() {
         playMusic("game_over", false, 0.8);
         playSound("player_death", 0.8);
     }
+    
+    console.log("Ниндзя получил урон! Запущена одноразовая анимация повреждения");
 }
 
 // ✅ ФУНКЦИИ ПРИНУДИТЕЛЬНОГО ПОВЫШЕНИЯ HP (ТЕСТОВЫЕ)
@@ -2845,15 +2847,14 @@ function forceHpLevelUpTo6() {
 
 // Обновление системы урона
 function updateDamageSystem() {
+  // ✅ АНИМАЦИЯ УРОНА УЖЕ ОБРАБАТЫВАЕТСЯ В updatePlayerAnimation()
+  // Здесь только система неуязвимости
+
   if (isInvulnerable) {
     invulnerabilityTimer--;
-
-    // Мигание каждые 30 кадров (примерно 0.5 секунды при 60 FPS)
-    if (invulnerabilityTimer % 30 < 15) {
-      damageFlashTimer = 5; // видимый
-    } else {
-      damageFlashTimer = 0; // невидимый
-    }
+    
+    // Мигание при неуязвимости
+    damageFlashTimer = (invulnerabilityTimer % 15 < 8) ? 5 : 0;
 
     if (invulnerabilityTimer <= 0) {
       isInvulnerable = false;
@@ -2864,7 +2865,30 @@ function updateDamageSystem() {
 
 // Обновление анимации персонажа
 function updatePlayerAnimation() {
-  // АТАКА - САМЫЙ ВЫСОКИЙ ПРИОРИТЕТ (прерывает все другие анимации)
+  // ✅ АНИМАЦИЯ УРОНА - ПРОИГРЫВАЕТСЯ 1 РАЗ
+  if (damageAnimationActive) {
+    currentAnimation = "damaged";
+    animationFrame = 0;
+    animationTimer = 0;
+    
+    // Уменьшаем таймер анимации
+    damageAnimationTimer--;
+    if (damageAnimationTimer <= 0) {
+      damageAnimationActive = false;
+      // После завершения анимации урона возвращаемся к обычной анимации
+      if (!player.grounded) {
+        currentAnimation = "fall";
+      } else if (keys["ArrowLeft"] || keys["ArrowRight"] || keys["KeyA"] || keys["KeyD"]) {
+        currentAnimation = "run";
+      } else {
+        currentAnimation = "idle";
+      }
+    }
+    
+    return; // Прерываем - не показываем другие анимации
+  }
+
+  // АТАКА - ВТОРОЙ ПО ПРИОРИТЕТУ
   if (isAttacking) {
     if (!player.grounded) {
       // Удар в прыжке
@@ -2875,7 +2899,7 @@ function updatePlayerAnimation() {
     }
     animationFrame = 0;
     animationTimer = 0;
-    return; // ВАЖНО: прерываем выполнение функции здесь
+    return;
   }
 
   // Проверяем движение с клавиатуры
@@ -2928,7 +2952,7 @@ function updatePlayerAnimation() {
   else if (isMoving) {
     currentAnimation = "run";
 
-    // Обновляем направление в зависимости от ввода (комбинируем клавиатуру и геймпад)
+    // Обновляем направление в зависимости от ввода
     if (isMovingRight || (isGamepadMoving && gamepadDirection > 0)) {
       player.direction = 1;
       isFacingRight = true;
