@@ -2499,8 +2499,8 @@ function draw() {
         const currentFrame = enemyFrames.flying[frameIndex];
         
         // ПЕРСОНАЛЬНОЕ УВЕЛИЧЕНИЕ ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
-        let drawWidth = enemy.width * 1.6;
-        let drawHeight = enemy.height * 1.6;
+        let drawWidth = enemy.width * 2.4;
+        let drawHeight = enemy.height * 3.2;
         
         // КОРРЕКТИРОВКА ПОЗИЦИИ - ДЛЯ ЛЕТАЮЩИХ ВРАГОВ
         let adjustedX = enemy.x - (drawWidth - enemy.width) / 2;
