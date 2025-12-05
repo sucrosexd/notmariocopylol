@@ -2034,20 +2034,37 @@ function drawCharacter() {
     // ninja_fall - УВЕЛИЧИВАЕМ
     drawWidth = player.width * 1.3;
     drawHeight = player.height * 1.3;
+    
+    // ✅ ИСПРАВЛЕННАЯ ВЕРСИЯ - СОХРАНЯЕМ СТАНДАРТНЫЕ РАЗМЕРЫ
   } else if (currentAnimation === "attack" && characterFrames.attack) {
     currentFrame = characterFrames.attack;
-    // Атака в статике - УВЕЛИЧЕННЫЙ РАЗМЕР
-    drawWidth = player.width * 3.0; 
-    drawHeight = player.height * 1.2;
-    yOffset = -8; // Поднимаем на 20 пикселей во время атаки на земле
+    // ✅ ПРАВИЛЬНОЕ МАСШТАБИРОВАНИЕ SVG 1920x1080 -> 80x120
+    const svgWidth = 1920;
+    const svgHeight = 1080;
+    const svgAspectRatio = svgWidth / svgHeight; // ≈ 1.78
+    
+    // Целевые размеры
+    const targetHeight = player.height; // 120
+    const targetWidth = targetHeight * svgAspectRatio; // ≈ 213
+    
+    drawWidth = targetWidth;  // ≈ 213px
+    drawHeight = targetHeight; // 120px
+    yOffset = 0;
   } else if (
     currentAnimation === "jump_attack" &&
     characterFrames.jump_attack
   ) {
     currentFrame = characterFrames.jump_attack;
-    // Атака в прыжке - УВЕЛИЧЕННЫЙ РАЗМЕР
-    drawWidth = player.width * 3.0; 
-    drawHeight = player.height * 1.2; 
+    // ✅ АНАЛОГИЧНО ДЛЯ АТАКИ В ПРЫЖКЕ
+    const svgWidth = 1920;
+    const svgHeight = 1080;
+    const svgAspectRatio = svgWidth / svgHeight;
+    
+    const targetHeight = player.height;
+    const targetWidth = targetHeight * svgAspectRatio;
+    
+    drawWidth = targetWidth;
+    drawHeight = targetHeight;
   } else {
     currentFrame = characterFrames.idle;
     // Покой - стандартный размер
@@ -2086,14 +2103,20 @@ function drawCharacter() {
     currentAnimation === "attack" ||
     currentAnimation === "jump_attack"
   ) {
-    // ДОБАВЛЯЕМ КОРРЕКТИРОВКУ ДЛЯ АНИМАЦИЙ АТАКИ
-    adjustedX = drawX - (drawWidth - player.width) / 2;
-    adjustedY = drawY - (drawHeight - player.height) / 2;
+    // ✅ КОРРЕКТИРОВКА ТОЛЬКО ПО ВЕРТИКАЛИ, ГОРИЗОНТАЛЬНО - БЕЗ ИЗМЕНЕНИЙ
+    // adjustedX = drawX - (drawWidth - player.width) / 2; // ⬅ УБИРАЕМ ЭТО!
+    adjustedX = drawX; // ⬅ ОСТАВЛЯЕМ ИСХОДНУЮ ПОЗИЦИЮ
+    adjustedY = drawY - (drawHeight - player.height) / 2; // Центрируем по вертикали если нужно
   }
 
-  // Отражаем если смотрит влево - ИСПОЛЬЗУЕМ ИСХОДНУЮ ЛОГИКУ БЕЗ ТЕЛЕПОРТАЦИИ
+  // ✅ ИСПРАВЛЕННАЯ ЛОГИКА ОТРАЖЕНИЯ ДЛЯ АТАКИ
   if (player.direction === -1) {
-    ctx.translate(adjustedX + drawWidth, adjustedY);
+    // Для атаки используем player.width вместо drawWidth для правильного позиционирования
+    const baseWidth = (currentAnimation === "attack" || currentAnimation === "jump_attack") 
+        ? player.width  // Используем оригинальную ширину для позиционирования
+        : drawWidth;    // Для других анимаций - как было
+    
+    ctx.translate(adjustedX + baseWidth, adjustedY);
     ctx.scale(-1, 1);
     ctx.drawImage(currentFrame, 0, 0, drawWidth, drawHeight);
   } else {
@@ -2946,24 +2969,28 @@ function startAttack() {
     attackHitbox.active = true;
 
     playSound("enemy_attack", 0.7);
-    console.log("Атака запущена! Движение остановлено.");
 }
 
 // ФУНКЦИЯ ОБНОВЛЕНИЯ ХИТБОКСА АТАКИ
 function updateAttackHitbox() {
-    const attackRange = 60; // УВЕЛИЧЕННЫЙ ХИТБОКС
-    const attackWidth = 60; // ШИРИНА ХИТБОКСА
-    const attackHeight = 40; // ВЫСОТА ХИТБОКСА
-    const yOffset = (currentAnimation === "attack") ? -8 : 0;
-
+    // ✅ НОВЫЕ РАЗМЕРЫ ХИТБОКСА ДЛЯ УВЕЛИЧЕННОЙ АНИМАЦИИ АТАКИ
+    const attackRange = 100; // ⬅ УВЕЛИЧИВАЕМ с 40 до 100 (меч длиннее)
+    const attackWidth = 60;  // ⬅ Ширина зоны поражения
+    const attackHeight = 50; // ⬅ Высота зоны поражения
+    
+    // ✅ УЧИТЫВАЕМ НОВЫЕ РАЗМЕРЫ АНИМАЦИИ (drawWidth = 213px)
+    const attackAnimationWidth = 213; // Из console.log
+    const extraWidth = attackAnimationWidth - player.width; // Дополнительная ширина анимации
+    
+    // ✅ КОРРЕКТИРОВКА ПОЗИЦИИ ХИТБОКСА В ЗАВИСИМОСТИ ОТ НАПРАВЛЕНИЯ
     if (player.direction === 1) {
-        // Атака вправо
-        attackHitbox.x = player.x + player.width - 20;
-        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+        // Атака вправо - хитбокс начинается справа от персонажа
+        attackHitbox.x = player.x + player.width - (extraWidth / 2);
+        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2;
     } else {
-        // Атака влево
-        attackHitbox.x = player.x - attackRange + 20;
-        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2 + yOffset;
+        // Атака влево - хитбокс начинается слева от персонажа
+        attackHitbox.x = player.x - attackRange + (extraWidth / 2);
+        attackHitbox.y = player.y + player.height / 2 - attackHeight / 2;
     }
     
     attackHitbox.width = attackRange;
@@ -2983,12 +3010,10 @@ function updateAttackSystem() {
       isAttacking = false;
       attackHitbox.active = false; // ВЫКЛЮЧАЕМ ХИТБОКС
       attackCooldown = ATTACK_COOLDOWN;
-      console.log("Анимация атаки завершена, начат кулдаун");
     }
     else if (attackState === "cooldown" && attackCooldown <= 0) {
       // Кулдаун завершен, атака снова доступна
       attackState = "ready";
-      console.log("Атака снова доступна!");
     }
   }
   
