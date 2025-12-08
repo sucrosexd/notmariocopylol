@@ -189,6 +189,8 @@ function saveGame() {
             coins: coins,
             level: level,
             playerSpeed: player.speed,
+            maxHp: hpSystem.maxHp,          // ✅ ДОБАВЛЯЕМ
+            currentHp: hpSystem.currentHp,  // ✅ ДОБАВЛЯЕМ
             timestamp: Date.now()
         };
         
@@ -211,6 +213,16 @@ function loadGame() {
     if (saveData) {
         try {
             gameSave = JSON.parse(saveData);
+            
+            // ✅ ВОССТАНАВЛИВАЕМ HP ПРИ ЗАГРУЗКЕ
+            if (gameSave.maxHp) {
+                hpSystem.maxHp = gameSave.maxHp;
+                hpSystem.currentHp = gameSave.currentHp || gameSave.maxHp;
+                hpSystem.displayHp = hpSystem.currentHp;
+                
+                console.log(`💾 Загружено сохранение: уровень ${gameSave.level}, HP: ${hpSystem.currentHp}/${hpSystem.maxHp}`);
+            }
+            
             return true;
         } catch (error) {
             console.error("Ошибка загрузки сохранения:", error);
@@ -1943,9 +1955,9 @@ function init() {
 
   // ✅ ИНИЦИАЛИЗИРУЕМ HP СИСТЕМУ КАК 3 ЖИЗНИ
   if (level === 1) {
-    hpSystem.currentHp = 3;    // 3 жизни
-    hpSystem.maxHp = 3;        // 3 максимум
-    hpSystem.displayHp = 3;    // 3 для отображения
+    hpSystem.currentHp = 3;
+    hpSystem.maxHp = 3;
+    hpSystem.displayHp = 3;
     hpSystem.isAnimating = false;
     hpSystem.isLevelUp = false;
     console.log("HP система инициализирована: 3 жизни");
@@ -1953,6 +1965,12 @@ function init() {
     // Проверим какой кадр загружается
     const testFrame = getCurrentHpFrame();
     console.log("Initial HP frame:", testFrame);
+  }
+
+  // ✅ ДОБАВЛЯЕМ: Проверка и повышение HP при начале уровня
+  // Только для новых игр, при загрузке сохранения HP уже загружено
+  if (!gameSave || gameSave.level !== level) {
+    checkAndUpgradeHpAtLevelStart();
   }
 
   // ПРОВЕРЯЕМ, ЧТО SVG ЗАГРУЖЕНЫ
@@ -2120,6 +2138,12 @@ function init() {
   isFacingRight = true;
   animationTime = 0;
   pauseKeyPressed = false;
+  
+  // ✅ ДОБАВЛЯЕМ: Инициализация анимаций для врагов
+  enemyAnimations = {};
+  for (let i = 0; i < enemies.length; i++) {
+    initEnemyAnimation(enemies[i]);
+  }
 }
 
 // Обновление отображения цели уровня
@@ -2962,45 +2986,128 @@ function takeDamage() {
 
 // ✅ ФУНКЦИИ ПРИНУДИТЕЛЬНОГО ПОВЫШЕНИЯ HP (ТЕСТОВЫЕ)
 function forceHpLevelUpTo4() {
-    // ✅ ПОВЫШЕНИЕ ДО 4 HP
+    // ✅ ПОВЫШЕНИЕ ДО 4 HP (автоматически на 5 уровне)
     const oldMaxHp = hpSystem.maxHp;
     const oldCurrentHp = hpSystem.currentHp;
     
     hpSystem.maxHp = 4;
     hpSystem.currentHp = 4;
+    hpSystem.displayHp = 4;
     hpSystem.targetHp = 4;
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
+    hpSystem.previousMaxHp = oldMaxHp;
     
     playSound("ui_click", 0.6);
+    
+    // ✅ СОХРАНЯЕМ ИГРУ
+    saveGame();
 }
 
 function forceHpLevelUpTo5() {
-    // ✅ ПОВЫШЕНИЕ ДО 5 HP
+    // ✅ ПОВЫШЕНИЕ ДО 5 HP (автоматически на 8 уровне)
     const oldMaxHp = hpSystem.maxHp;
     const oldCurrentHp = hpSystem.currentHp;
     
     hpSystem.maxHp = 5;
     hpSystem.currentHp = 5;
+    hpSystem.displayHp = 5;
     hpSystem.targetHp = 5;
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
+    hpSystem.previousMaxHp = oldMaxHp;
     
     playSound("ui_click", 0.6);
+    
+    // ✅ СОХРАНЯЕМ ИГРУ
+    saveGame();
 }
 
 function forceHpLevelUpTo6() {
-    // ✅ ПОВЫШЕНИЕ ДО 6 HP
+    // ✅ ПОВЫШЕНИЕ ДО 6 HP (тестовое, не используется в автоматическом режиме)
     const oldMaxHp = hpSystem.maxHp;
     const oldCurrentHp = hpSystem.currentHp;
     
     hpSystem.maxHp = 6;
     hpSystem.currentHp = 6;
+    hpSystem.displayHp = 6;
     hpSystem.targetHp = 6;
     hpSystem.isLevelUp = true;
     hpSystem.isAnimating = true;
+    hpSystem.previousMaxHp = oldMaxHp;
     
     playSound("ui_click", 0.6);
+    
+    // ✅ СОХРАНЯЕМ ИГРУ
+    saveGame();
+}
+
+// ✅ ФУНКЦИЯ: Автоматическое повышение HP по уровням
+function updateHpByLevel() {
+    // Определяем максимальное HP для текущего уровня
+    let newMaxHp;
+    
+    if (level <= 4) {
+        // Уровни 1-4: 3 HP
+        newMaxHp = 3;
+    } else if (level <= 7) {
+        // Уровни 5-7: 4 HP
+        newMaxHp = 4;
+    } else {
+        // Уровни 8+: 5 HP
+        newMaxHp = 5;
+    }
+    
+    // Если новое максимальное HP больше текущего
+    if (newMaxHp > hpSystem.maxHp) {
+        const oldMaxHp = hpSystem.maxHp;
+        
+        // Обновляем HP систему
+        hpSystem.maxHp = newMaxHp;
+        hpSystem.currentHp = newMaxHp; // Полностью восстанавливаем при повышении
+        hpSystem.displayHp = newMaxHp;
+        hpSystem.targetHp = newMaxHp;
+        hpSystem.isLevelUp = true;
+        hpSystem.isAnimating = true;
+        
+        // Сохраняем предыдущее максимальное HP для анимации
+        hpSystem.previousMaxHp = oldMaxHp;
+        
+        // Проигрываем звук повышения HP
+        playSound("ui_click", 0.6);
+        
+        console.log(`✅ HP повышено с ${oldMaxHp} до ${newMaxHp} на уровне ${level}`);
+        
+        // ✅ СОХРАНЯЕМ ИГРУ ПРИ ПОВЫШЕНИИ HP
+        saveGame();
+    }
+}
+
+// ✅ ФУНКЦИЯ: Проверка и повышение HP в начале уровня
+function checkAndUpgradeHpAtLevelStart() {
+    // Сохраняем текущий уровень для проверки
+    const lastSavedLevel = gameSave ? gameSave.level : 1;
+    
+    // Если перешли на новый уровень
+    if (level > lastSavedLevel) {
+        // Проверяем специальные переходы:
+        if (level === 5) {
+            // Переход на 5 уровень → повышаем до 4 HP
+            console.log("🎮 Переход на уровень 5 - повышение HP до 4");
+            forceHpLevelUpTo4();
+        } else if (level === 8) {
+            // Переход на 8 уровень → повышаем до 5 HP  
+            console.log("🎮 Переход на уровень 8 - повышение HP до 5");
+            forceHpLevelUpTo5();
+        } else if (level === 10) {
+            // Переход на 10 уровень → повышаем до 6 HP (если нужно)
+            console.log("🎮 Переход на уровень 10 - повышение HP до 6");
+            forceHpLevelUpTo6();
+        }
+        
+        // Всегда проверяем автоматическое повышение по уровню
+        updateHpByLevel();
+    }
 }
 
 // Обновление системы урона
@@ -3783,12 +3890,51 @@ restartButton.addEventListener("click", () => {
 
 // Следующий уровень
 nextLevelButton.addEventListener("click", () => {
+  console.log("🎯 Кнопка 'Следующий уровень' нажата, текущий уровень:", level);
+  
+  // ✅ ЗАЩИТА ОТ ПОВТОРНЫХ НАЖАТИЙ
+  if (gameState === "playing") {
+    console.warn("⚠️ Игра уже в состоянии playing, игнорируем нажатие");
+    return;
+  }
+  
   levelCompleteScreen.classList.add("hidden");
   playSound("ui_click", 0.5);
-  // levelUpHp();
+  
+  // ✅ СОХРАНЯЕМ ТЕКУЩИЙ УРОВЕНЬ ПЕРЕД УВЕЛИЧЕНИЕМ
+  const currentLevelBeforeIncrease = level;
+  console.log(`📈 Повышение уровня с ${currentLevelBeforeIncrease} до ${currentLevelBeforeIncrease + 1}`);
+  
+  // Увеличиваем уровень
   level++;
   levelCountElement.textContent = level;
   gameState = "playing";
+
+  // ✅ ПРИНУДИТЕЛЬНЫЙ СБРОС ЕСЛИ УРОВЕНЬ >= 8
+  if (level >= 8) {
+    console.log("⚠️ Принудительный сброс для уровня 8+");
+    // Сбрасываем сложные вычисления и массивы
+    platforms = [];
+    enemies = [];
+    dyingEnemies = [];
+    coinsList = [];
+    enemyAnimations = {};
+    
+    // Сбрасываем флаги атаки
+    isAttacking = false;
+    attackState = "ready";
+    attackHitbox.active = false;
+    
+    // Уменьшаем сложность если нужно
+    if (player.speed > 10) {
+      player.speed = 10;
+      console.log("⚡ Скорость игрока сброшена до 10");
+    }
+  }
+
+  // ✅ ДОБАВЛЯЕМ: Проверяем повышение HP после перехода на новый уровень
+  console.log(`🎮 Переход с уровня ${currentLevelBeforeIncrease} на уровень ${level}`);
+  checkAndUpgradeHpAtLevelStart();
 
   // Останавливаем текущую музыку и запускаем соответствующую новому уровню
   stopMusic();
@@ -3804,10 +3950,46 @@ nextLevelButton.addEventListener("click", () => {
     playMusic("forest_theme", true, musicVolume); // временно
   }
 
-  init();
+  // ✅ ВАЖНО: Инициализируем игру ПОСЛЕ проверки HP
+  console.log("🔄 Запуск инициализации игры для уровня", level);
+  try {
+    init();
+    console.log("✅ Инициализация завершена успешно");
+  } catch (error) {
+    console.error("❌ Ошибка при инициализации уровня", level, ":", error);
+    
+    // Если ошибка на 8+ уровне, пытаемся загрузить предыдущий
+    if (level >= 8) {
+      console.log("🔄 Попытка загрузки уровня 7...");
+      level = 7;
+      levelCountElement.textContent = level;
+      
+      try {
+        init();
+        console.log("✅ Уровень 7 загружен успешно");
+      } catch (secondError) {
+        console.error("❌ Ошибка даже на уровне 7:", secondError);
+        // Возвращаем в меню
+        gameState = "menu";
+        startScreen.classList.remove("hidden");
+        resetStartButton();
+      }
+    } else {
+      // Возвращаем в меню для других уровней
+      gameState = "menu";
+      startScreen.classList.remove("hidden");
+      resetStartButton();
+    }
+    return;
+  }
 
   // Увеличиваем сложность
   player.speed += 0.3;
+  console.log(`⚡ Скорость игрока увеличена до: ${player.speed}`);
+  
+  // ✅ ФИНАЛЬНАЯ ПРОВЕРКА
+  console.log("✅ Переход на уровень", level, "завершен успешно");
+  console.log("=== КОНЕЦ ОБРАБОТКИ КНОПКИ ===");
 });
 
 // Продолжение игры из паузы
