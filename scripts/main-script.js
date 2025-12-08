@@ -136,6 +136,10 @@ let enemyFrames = {
 
 let enemyAnimations = {}; // Хранит текущее состояние анимации для каждого врага
 
+// ✅ НОВОЕ: Добавляем анимацию смерти врагов
+let enemyDeathFrames = [];
+let dyingEnemies = []; // Массив умирающих врагов
+
 // Размер уровня
 let levelWidth = 4800;
 let levelHeight = 1200;
@@ -931,6 +935,163 @@ function createFallbackEnemyImage(width, height, color) {
     const img = new Image();
     img.src = canvas.toDataURL();
     return img;
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Загрузка анимаций смерти врагов
+async function loadEnemyDeathAnimations() {
+    console.log("Начинаем загрузку анимаций смерти врагов...");
+    
+    try {
+        // Загружаем 4 кадра анимации смерти
+        const deathFrame1 = await loadImage('assets/animations/characters/enemies/enemy_death/enemy_death_1.svg')
+            .catch(err => createFallbackDeathImage(1));
+        const deathFrame2 = await loadImage('assets/animations/characters/enemies/enemy_death/enemy_death_2.svg')
+            .catch(err => createFallbackDeathImage(2));
+        const deathFrame3 = await loadImage('assets/animations/characters/enemies/enemy_death/enemy_death_3.svg')
+            .catch(err => createFallbackDeathImage(3));
+        const deathFrame4 = await loadImage('assets/animations/characters/enemies/enemy_death/enemy_death_4.svg')
+            .catch(err => createFallbackDeathImage(4));
+        
+        enemyDeathFrames = [deathFrame1, deathFrame2, deathFrame3, deathFrame4];
+        
+        console.log("Анимации смерти врагов загружены успешно!");
+        return true;
+    } catch (error) {
+        console.error("Ошибка загрузки анимаций смерти врагов:", error);
+        // Создаем фоллбэк анимации
+        enemyDeathFrames = [
+            createFallbackDeathImage(1),
+            createFallbackDeathImage(2),
+            createFallbackDeathImage(3),
+            createFallbackDeathImage(4)
+        ];
+        return true;
+    }
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Создание фоллбэк изображения для смерти
+function createFallbackDeathImage(frameNumber) {
+    const canvas = document.createElement('canvas');
+    canvas.width = 60;
+    canvas.height = 60;
+    const ctx = canvas.getContext('2d');
+    
+    // Рисуем простую анимацию смерти
+    ctx.fillStyle = "#FF0000";
+    ctx.fillRect(0, 0, 60, 60);
+    
+    ctx.fillStyle = "white";
+    ctx.font = "12px Arial";
+    ctx.fillText(`Death ${frameNumber}`, 5, 30);
+    
+    const img = new Image();
+    img.src = canvas.toDataURL();
+    return img;
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Запуск анимации смерти врага
+function startEnemyDeathAnimation(enemy, enemyIndex) {
+    // Удаляем врага из основного массива
+    enemies.splice(enemyIndex, 1);
+    
+    // Добавляем в массив умирающих врагов
+    const dyingEnemy = {
+        x: enemy.x,
+        y: enemy.y,
+        width: enemy.width * 1.5, // Немного увеличиваем для эффекта
+        height: enemy.height * 1.5,
+        deathTimer: 60, // 1 секунда при 60 FPS
+        currentFrame: 0,
+        frameTimer: 0,
+        frameSpeed: 15, // Смена кадра каждые 15 кадров
+        direction: enemy.direction,
+        enemyType: enemy.enemyType,
+        type: enemy.type
+    };
+    
+    dyingEnemies.push(dyingEnemy);
+    
+    // Удаляем анимацию этого врага
+    delete enemyAnimations[enemyIndex];
+    
+    // Перенумеруем оставшиеся анимации врагов
+    reorganizeEnemyAnimations(enemyIndex);
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Реорганизация анимаций после удаления врага
+function reorganizeEnemyAnimations(removedIndex) {
+    const newAnimations = {};
+    
+    // Копируем анимации, смещая индексы
+    for (let i = 0; i < enemies.length; i++) {
+        const oldIndex = i >= removedIndex ? i + 1 : i;
+        if (enemyAnimations[oldIndex]) {
+            newAnimations[i] = enemyAnimations[oldIndex];
+        }
+    }
+    
+    enemyAnimations = newAnimations;
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Обновление анимаций смерти
+function updateDeathAnimations() {
+    for (let i = dyingEnemies.length - 1; i >= 0; i--) {
+        const dyingEnemy = dyingEnemies[i];
+        
+        // Уменьшаем таймер
+        dyingEnemy.deathTimer--;
+        
+        // Обновляем анимацию
+        dyingEnemy.frameTimer++;
+        if (dyingEnemy.frameTimer >= dyingEnemy.frameSpeed) {
+            dyingEnemy.frameTimer = 0;
+            dyingEnemy.currentFrame++;
+            
+            // Эффект "всплытия" в последнем кадре
+            if (dyingEnemy.currentFrame >= 3) {
+                dyingEnemy.y -= 2;
+            }
+        }
+        
+        // Удаляем завершенную анимацию
+        if (dyingEnemy.deathTimer <= 0) {
+            dyingEnemies.splice(i, 1);
+        }
+    }
+}
+
+// ✅ НОВАЯ ФУНКЦИЯ: Отрисовка анимаций смерти
+function drawDeathAnimations() {
+    for (const dyingEnemy of dyingEnemies) {
+        if (enemyDeathFrames.length === 0) continue;
+        
+        const frameIndex = Math.min(dyingEnemy.currentFrame, enemyDeathFrames.length - 1);
+        const deathFrame = enemyDeathFrames[frameIndex];
+        
+        if (!deathFrame) continue;
+        
+        ctx.save();
+        
+        // Эффект прозрачности в конце
+        if (dyingEnemy.deathTimer < 20) {
+            ctx.globalAlpha = dyingEnemy.deathTimer / 20;
+        }
+        
+        // Центрирование анимации смерти
+        const drawX = dyingEnemy.x - (dyingEnemy.width - dyingEnemy.width/1.5) / 2;
+        const drawY = dyingEnemy.y - (dyingEnemy.height - dyingEnemy.height/1.5) / 2;
+        
+        // Отражение для врагов, смотрящих влево
+        if (dyingEnemy.direction === -1) {
+            ctx.translate(drawX + dyingEnemy.width / 2, drawY);
+            ctx.scale(-1, 1);
+            ctx.drawImage(deathFrame, -dyingEnemy.width / 2, 0, dyingEnemy.width, dyingEnemy.height);
+        } else {
+            ctx.drawImage(deathFrame, drawX, drawY, dyingEnemy.width, dyingEnemy.height);
+        }
+        
+        ctx.restore();
+    }
 }
 
 // Инициализация анимации для врага
@@ -2674,6 +2835,9 @@ function draw() {
     }
   }
 
+  // ✅ ДОБАВЛЯЕМ: Отрисовка анимаций смерти врагов
+  drawDeathAnimations();
+
   // Рисование флага (только если собрано достаточно монет)
   if (coinsCollectedInLevel >= coinsToWin) {
     if (flag.x < camera.x + camera.width && flag.x + flag.width > camera.x) {
@@ -3185,16 +3349,16 @@ function checkAttackCollisions() {
   for (let i = enemies.length - 1; i >= 0; i--) {
     let enemy = enemies[i];
     
-    // Проверяем столкновение хитбокса атаки с врагом
     if (
       attackHitbox.x < enemy.x + enemy.width &&
       attackHitbox.x + attackHitbox.width > enemy.x &&
       attackHitbox.y < enemy.y + enemy.height &&
       attackHitbox.y + attackHitbox.height > enemy.y
     ) {
-      // Убиваем врага
-      enemies.splice(i, 1);
-
+      // ✅ ЗАМЕНЯЕМ НА НОВУЮ ФУНКЦИЮ:
+      // enemies.splice(i, 1);
+      startEnemyDeathAnimation(enemy, i);
+      
       // Небольшой отскок при убийстве атакой
       if (!player.grounded) {
         player.velY = -6;
@@ -3285,6 +3449,8 @@ function update() {
   // Обновление врагов
   updateEnemies();
 
+  // ✅ ДОБАВИТЬ: Обновление анимаций смерти
+  updateDeathAnimations();
 
   // ОБНОВЛЕНИЕ СИСТЕМЫ АТАКИ
   updateAttackSystem();
@@ -3395,7 +3561,9 @@ function update() {
     ) {
       // НОВАЯ ЛОГИКА: атака убивает всех врагов
       if (isAttacking) {
-        enemies.splice(i, 1);
+        // ✅ ТАКЖЕ ЗАМЕНИТЬ В ДРУГОМ МЕСТЕ:
+        // enemies.splice(i, 1); 
+        startEnemyDeathAnimation(enemy, i);
 
         // Небольшой отскок при убийстве атакой
         if (!player.grounded) {
@@ -3424,7 +3592,9 @@ function update() {
         player.y + player.height < enemy.y + enemy.height / 2 &&
         !enemy.isArmored
       ) {
-        enemies.splice(i, 1);
+        // ✅ ТАКЖЕ ЗАМЕНИТЬ В ДРУГОМ МЕСТЕ:
+        // enemies.splice(i, 1); 
+        startEnemyDeathAnimation(enemy, i);
         player.velY = -12;
 
         coins += 2;
@@ -3806,7 +3976,7 @@ window.addEventListener("resize", resizeCanvas);
 setInterval(handleGamepad, 100);
 
 // Запуск игры после загрузки страницы - загружаем ВСЕ ресурсы сразу
-Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations(), loadHpAnimations()])
+Promise.all([loadAllSVGs(), enableGameAudio(), loadEnemyAnimations(), loadCoinAnimations(), loadHpAnimations(), loadEnemyDeathAnimations()])
   .then(() => {
     console.log("Все ресурсы загружены, ожидаем пользователя...");
     updateContinueButton();
