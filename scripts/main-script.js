@@ -2015,58 +2015,63 @@ function drawSVGPart(id, x, y, width, height, rotation) {
   ctx.restore();
 }
 
-// Отрисовка персонажа - ФИНАЛЬНАЯ ВЕРСИЯ
+// Отрисовка персонажа
 function drawCharacter() {
   let currentFrame;
 
   // БАЗОВЫЕ РАЗМЕРЫ
-  let drawWidth = player.width;
-  let drawHeight = player.height;
+  let drawWidth = player.width;  // 80px
+  let drawHeight = player.height; // 120px
   let yOffset = 0;
 
-  // ✅ АНИМАЦИЯ УРОНА - УВЕЛИЧИВАЕМ РАЗМЕР
+  // АНИМАЦИЯ УРОНА
   if (currentAnimation === "damaged" && characterFrames.damaged) {
     currentFrame = characterFrames.damaged;
-    // ✅ УВЕЛИЧИВАЕМ РАЗМЕР АНИМАЦИИ УРОНА
-    drawWidth = player.width * 1.4;    // Было 1.0 - УВЕЛИЧИВАЕМ НА 40%
-    drawHeight = player.height * 1.4;  // Было 1.0 - УВЕЛИЧИВАЕМ НА 40%
-    yOffset = 0;
+    drawWidth = player.width * 1.4;
+    drawHeight = player.height * 1.4;
+  }
+  // АНИМАЦИЯ АТАКИ НА ЗЕМЛЕ
+  else if (currentAnimation === "attack" && characterFrames.attack) {
+    currentFrame = characterFrames.attack;
+    
+    // Сохраняем пропорции оригинального SVG
+    const svgAspectRatio = 1920 / 1080; // 1.777... (16:9)
+    const targetHeight = player.height; // 120px
+    const targetWidth = targetHeight * svgAspectRatio; // ≈ 213px
+    
+    drawWidth = targetWidth;
+    drawHeight = targetHeight;
+  }
+  // АНИМАЦИЯ АТАКИ В ПРЫЖКЕ
+  else if (currentAnimation === "jump_attack" && characterFrames.jump_attack) {
+    currentFrame = characterFrames.jump_attack;
+    
+    const svgAspectRatio = 1920 / 1080;
+    const targetHeight = player.height;
+    const targetWidth = targetHeight * svgAspectRatio;
+    
+    drawWidth = targetWidth;
+    drawHeight = targetHeight;
   }
   // Остальные анимации
   else if (currentAnimation === "run" && characterFrames.run.length > 0) {
     currentFrame = characterFrames.run[animationFrame];
-    // Бег - стандартный размер
   } else if (currentAnimation === "jump" && characterFrames.jump.length > 0) {
     currentFrame = characterFrames.jump[animationFrame];
     
     if (animationFrame === 0) {
-      // ninja_jump - УВЕЛИЧИВАЕМ
       drawWidth = player.width * 1.3;
       drawHeight = player.height * 1.3;
     } else if (animationFrame === 1) {
-      // ninja_kolobok - УМЕНЬШАЕМ
       drawWidth = player.width * 0.7;
       drawHeight = player.height * 0.7;
     }
   } else if (currentAnimation === "fall" && characterFrames.fall) {
     currentFrame = characterFrames.fall;
-    // ninja_fall - УВЕЛИЧИВАЕМ
     drawWidth = player.width * 1.3;
     drawHeight = player.height * 1.3;
-    
-    // ✅ ИСПРАВЛЕННАЯ ВЕРСИЯ - СОХРАНЯЕМ СТАНДАРТНЫЕ РАЗМЕРЫ
-  } else if (currentAnimation === "attack" && characterFrames.attack) {
-    currentFrame = characterFrames.attack;
-    drawWidth = player.width * 1.3;
-    drawHeight = player.height * 1.0;
-    yOffset = 0;
-  } else if (currentAnimation === "jump_attack" && characterFrames.jump_attack) {
-    currentFrame = characterFrames.jump_attack;
-    drawWidth = player.width * 1.3;
-    drawHeight = player.height * 1.0;
   } else {
     currentFrame = characterFrames.idle;
-    // Покой - стандартный размер
   }
 
   if (!currentFrame) {
@@ -2077,19 +2082,20 @@ function drawCharacter() {
   // Отрисовка
   ctx.save();
 
-  // ✅ ЭФФЕКТ МИГАНИЯ ТОЛЬКО ПРИ НЕУЯЗВИМОСТИ
+  // Эффект мигания при получении урона
   if (damageFlashTimer > 0) {
     ctx.globalAlpha = 0.5;
   }
 
-  // КООРДИНАТЫ
+  // ФИКСИРОВАННЫЕ КООРДИНАТЫ
   const drawX = player.x;
   const drawY = player.y + yOffset;
 
-  // Корректировка позиции
+  // КОРРЕКТИРОВКА ПОЗИЦИИ
   let adjustedX = drawX;
   let adjustedY = drawY;
 
+  // Корректировка только для прыжка и падения
   if (currentAnimation === "jump") {
     if (animationFrame === 0 || animationFrame === 1) {
       adjustedX = drawX - (drawWidth - player.width) / 2;
@@ -2098,32 +2104,20 @@ function drawCharacter() {
   } else if (currentAnimation === "fall") {
     adjustedX = drawX - (drawWidth - player.width) / 2;
     adjustedY = drawY - (drawHeight - player.height) / 2;
-  } else if (
-    currentAnimation === "attack" ||
-    currentAnimation === "jump_attack" ||
-    currentAnimation === "damaged"
-  ) {
-    adjustedX = drawX - (drawWidth - player.width) / 2;
-    adjustedY = drawY - (drawHeight - player.height) / 2;
   }
+  // Для атаки и урона - никакой корректировки
 
-  // Отражаем если смотрит влево
+  // ОТРАЖЕНИЕ ДЛЯ НАПРАВЛЕНИЯ ВЛЕВО
   if (player.direction === -1) {
-    ctx.translate(adjustedX + drawWidth, adjustedY);
+    const reflectionPoint = adjustedX + player.width;
+    
+    ctx.translate(reflectionPoint, adjustedY);
     ctx.scale(-1, 1);
     ctx.drawImage(currentFrame, 0, 0, drawWidth, drawHeight);
   } else {
-    // Смотрит вправо - рисуем как есть
+    // Враг смотрит ВПРАВО
     ctx.drawImage(currentFrame, adjustedX, adjustedY, drawWidth, drawHeight);
   }
-
-  //Просмотр хитбокса
-  // if (attackHitbox.active) {
-  //   ctx.strokeStyle = "red";
-  //   ctx.lineWidth = 2;
-  //   ctx.strokeRect(attackHitbox.x, attackHitbox.y, attackHitbox.width, attackHitbox.height);
-  // }
-
 
   // Восстанавливаем контекст
   ctx.restore();
