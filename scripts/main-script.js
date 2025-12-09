@@ -1010,8 +1010,8 @@ function startEnemyDeathAnimation(enemy, enemyIndex) {
     const dyingEnemy = {
         x: enemy.x,
         y: enemy.y,
-        width: enemy.width * 1.5, // Немного увеличиваем для эффекта
-        height: enemy.height * 1.5,
+        width: enemy.width * 3.5,
+        height: enemy.height * 3.5,
         deathTimer: 60, // 1 секунда при 60 FPS
         currentFrame: 0,
         frameTimer: 0,
@@ -1090,8 +1090,8 @@ function drawDeathAnimations() {
         }
         
         // Центрирование анимации смерти
-        const drawX = dyingEnemy.x - (dyingEnemy.width - dyingEnemy.width/1.5) / 2;
-        const drawY = dyingEnemy.y - (dyingEnemy.height - dyingEnemy.height/1.5) / 2;
+        const drawX = dyingEnemy.x - (dyingEnemy.width - dyingEnemy.width/3.5) / 2;
+        const drawY = dyingEnemy.y - (dyingEnemy.height - dyingEnemy.height/3.5) / 2 - 50;
         
         // Отражение для врагов, смотрящих влево
         if (dyingEnemy.direction === -1) {
